@@ -11,7 +11,7 @@
     },
     "ghcr.io/devcontainer-community/devcontainer-features/bun.sh:1": {},
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-      "packages": "ccache,libgles2-mesa-dev,libsimde-dev,obs-studio,qt6-base-dev,qt6-base-private-dev,libqt6svg6-dev"
+      "packages": "ccache,libgles2-mesa-dev,libsimde-dev,obs-studio,libobs-dev,qt6-base-dev,qt6-base-private-dev,libqt6svg6-dev"
     }
   }
 }
