@@ -1,6 +1,43 @@
 {
   "name": "obs-rvc",
   "image": "ghcr.io/nayetdet/obs-rvc:devcontainer",
+  "remoteUser": "vscode",
+  "initializeCommand": "bash .devcontainer/scripts/init.sh",
+  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
-  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "runArgs": [
+    "--security-opt=label=disable"
+  ],
+  "mounts": [
+    "source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind"
+  ],
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/vscode/.bun/bin"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools",
+        "ms-vscode.makefile-tools",
+        "github.vscode-github-actions"
+      ],
+      "settings": {
+        "cmake.useCMakePresets": "always",
+        "cmake.configureOnOpen": true,
+        "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+        "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+        "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+        "[cpp]": {
+          "editor.defaultFormatter": "ms-vscode.cpptools",
+          "editor.formatOnSave": true
+        },
+        "[c]": {
+          "editor.defaultFormatter": "ms-vscode.cpptools",
+          "editor.formatOnSave": true
+        }
+      }
+    }
+  }
 }
