@@ -1,0 +1,6 @@
+{
+  "name": "obs-rvc",
+  "image": "ghcr.io/nayetdet/obs-rvc:devcontainer",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+}

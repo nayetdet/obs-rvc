@@ -3,6 +3,8 @@
 
 # Except for default project files
 !/.github
+!/.devcontainer
+!/.devcontainer/**
 !/build-aux
 !/cmake
 !/data

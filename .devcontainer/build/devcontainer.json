@@ -1,0 +1,16 @@
+{
+  "name": "obs-rvc-build",
+  "image": "mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "username": "vscode"
+    },
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+      "packages": "ccache,libgles2-mesa-dev,libsimde-dev,obs-studio,qt6-base-dev,qt6-base-private-dev,libqt6svg6-dev"
+    }
+  },
+  "workspaceMount": "source=${localWorkspaceFolder}/../..,target=/workspaces/obs-rvc,type=bind",
+  "workspaceFolder": "/workspaces/obs-rvc"
+}
