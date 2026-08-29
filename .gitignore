@@ -4,7 +4,6 @@
 # Except for default project files
 !/.github
 !/.devcontainer
-!/.devcontainer/**
 !/build-aux
 !/cmake
 !/data
@@ -16,6 +15,7 @@
 !CMakeLists.txt
 !CMakePresets.json
 !LICENSE
+!Makefile
 !README.md
 
 # Exclude lock files
