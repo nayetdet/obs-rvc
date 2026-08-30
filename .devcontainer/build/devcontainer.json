@@ -21,7 +21,7 @@
     "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/devcontainer-community/devcontainer-features/bun.sh:1": {},
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-      "packages": "ccache,ffmpeg,libgles2-mesa-dev,libobs-dev,libsndfile1,libportaudio2,libqt6svg6-dev,libsimde-dev,ninja-build,obs-studio,pkg-config,qt6-base-dev,qt6-base-private-dev,software-properties-common,unzip"
+      "packages": "ccache,ffmpeg,libavcodec-dev,libavdevice-dev,libavfilter-dev,libavformat-dev,libavutil-dev,libgles2-mesa-dev,libobs-dev,libsndfile1,libportaudio2,libqt6svg6-dev,libsimde-dev,libswresample-dev,libswscale-dev,ninja-build,obs-studio,pkg-config,qt6-base-dev,qt6-base-private-dev,software-properties-common,unzip"
     }
   }
 }
