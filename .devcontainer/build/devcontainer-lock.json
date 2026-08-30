@@ -10,6 +10,11 @@
       "resolved": "ghcr.io/devcontainers/features/common-utils@sha256:cb0c4d3c276f157eed17935747e364178d75fee17f55c4e129966f64633deb3a",
       "integrity": "sha256:cb0c4d3c276f157eed17935747e364178d75fee17f55c4e129966f64633deb3a"
     },
+    "ghcr.io/devcontainers-extra/features/zsh-plugins:0": {
+      "version": "0.0.5",
+      "resolved": "ghcr.io/devcontainers-extra/features/zsh-plugins@sha256:4dcc8e97307345cff26c2b4dfd840c2947b8b5bb20f492a68bdb9fbe9ccb67ba",
+      "integrity": "sha256:4dcc8e97307345cff26c2b4dfd840c2947b8b5bb20f492a68bdb9fbe9ccb67ba"
+    },
     "ghcr.io/postfinance/devcontainer-features/python:1.1.0": {
       "version": "1.1.0",
       "resolved": "ghcr.io/postfinance/devcontainer-features/python@sha256:ec5b9b46cf7514368af82a0e847344bd8be8610eec22f384d4e6359889826126",
