@@ -9,6 +9,10 @@
       "installOhMyZsh": true,
       "username": "vscode"
     },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.14"
+    },
+    "ghcr.io/devcontainers-extra/features/uv:1": {},
     "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/devcontainer-community/devcontainer-features/bun.sh:1": {},
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {

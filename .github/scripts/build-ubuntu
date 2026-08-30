@@ -36,7 +36,7 @@ TRAPZERR() {
 build() {
   if (( ! ${+SCRIPT_HOME} )) typeset -g SCRIPT_HOME=${ZSH_ARGZERO:A:h}
   local host_os='ubuntu'
-  local project_root=${SCRIPT_HOME:A:h:h}
+  local project_root=${SCRIPT_HOME:A:h:h}/plugin
   local buildspec_file=${project_root}/buildspec.json
 
   fpath=("${SCRIPT_HOME}/utils.zsh" ${fpath})

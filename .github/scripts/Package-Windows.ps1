@@ -33,7 +33,7 @@ function Package {
     }
 
     $ScriptHome = $PSScriptRoot
-    $ProjectRoot = Resolve-Path -Path "$PSScriptRoot/../.."
+    $ProjectRoot = Resolve-Path -Path "$PSScriptRoot/../../plugin"
     $BuildSpecFile = "${ProjectRoot}/buildspec.json"
 
     $UtilityFunctions = Get-ChildItem -Path $PSScriptRoot/utils.pwsh/*.ps1 -Recurse

@@ -23,7 +23,7 @@ inputs:
   workingDirectory:
     description: Working directory for packaging
     required: false
-    default: ${{ github.workspace }}
+    default: ${{ github.workspace }}/plugin
 runs:
   using: composite
   steps:
@@ -43,7 +43,7 @@ runs:
 
         if [[ '${{ inputs.codesign }}' == 'true' ]] build_args+=(--codesign)
 
-        .github/scripts/build-macos ${build_args}
+        ${GITHUB_WORKSPACE}/.github/scripts/build-macos ${build_args}
 
     - name: Install Dependencies 🛍️
       if: runner.os == 'Linux'
@@ -71,7 +71,7 @@ runs:
         )
         if (( ${+RUNNER_DEBUG} )) build_args+=(--debug)
 
-        .github/scripts/build-ubuntu ${build_args}
+        ${GITHUB_WORKSPACE}/.github/scripts/build-ubuntu ${build_args}
 
     - name: Run Windows Build
       if: runner.os == 'Windows'
@@ -87,7 +87,7 @@ runs:
           Configuration = '${{ inputs.config }}'
         }
 
-        .github/scripts/Build-Windows.ps1 @BuildArgs
+        ${env:GITHUB_WORKSPACE}/.github/scripts/Build-Windows.ps1 @BuildArgs
 
     - name: Create Summary 📊
       if: contains(fromJSON('["Linux", "macOS"]'),runner.os)

@@ -1,21 +1,12 @@
 # Exclude everything
 /*
 
-# Except for default project files
+# Keep repository-level configuration and metadata
 !/.github
 !/.devcontainer
-!/build-aux
-!/cmake
-!/data
-!/src
-!.clang-format
-!.gersemirc
+!/plugin
+!/plugin-worker
 !.gitignore
-!buildspec.json
-!CMakeLists.txt
-!CMakePresets.json
-!LICENSE
-!Makefile
 !README.md
 
 # Exclude lock files
@@ -23,6 +14,3 @@
 
 # Exclude macOS legacy resource forks
 .DS_Store
-
-# Exclude CMake build number cache
-/cmake/.CMakeBuildNumber
