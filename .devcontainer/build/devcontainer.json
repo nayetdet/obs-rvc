@@ -9,7 +9,7 @@
       "installOhMyZsh": true,
       "username": "vscode"
     },
-    "ghcr.io/devcontainers/features/python:1.8.0": {
+    "ghcr.io/postfinance/devcontainer-features/python:1.1.0": {
       "version": "3.12"
     },
     "ghcr.io/devcontainers-extra/features/uv:1": {},
