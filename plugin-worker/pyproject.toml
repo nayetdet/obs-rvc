@@ -8,7 +8,9 @@ authors = [
     { name = "nayetdet", email = "jpmoreiracampos21@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "rvc",
+]
 
 [project.scripts]
 plugin-worker = "plugin_worker:main"
@@ -16,3 +18,6 @@ plugin-worker = "plugin_worker:main"
 [build-system]
 requires = ["uv_build>=0.12.7,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+rvc = { git = "https://github.com/nayetdet/Retrieval-based-Voice-Conversion" }
