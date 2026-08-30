@@ -87,7 +87,7 @@ runs:
           Configuration = '${{ inputs.config }}'
         }
 
-        ${env:GITHUB_WORKSPACE}/.github/scripts/Build-Windows.ps1 @BuildArgs
+        & "${env:GITHUB_WORKSPACE}/.github/scripts/Build-Windows.ps1" @BuildArgs
 
     - name: Create Summary 📊
       if: contains(fromJSON('["Linux", "macOS"]'),runner.os)

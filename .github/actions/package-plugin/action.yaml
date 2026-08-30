@@ -110,4 +110,4 @@ runs:
           Configuration = '${{ inputs.config }}'
         }
 
-        ${env:GITHUB_WORKSPACE}/.github/scripts/Package-Windows.ps1 @PackageArgs
+        & "${env:GITHUB_WORKSPACE}/.github/scripts/Package-Windows.ps1" @PackageArgs
