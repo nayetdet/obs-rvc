@@ -3,6 +3,7 @@ name = "plugin-worker"
 version = "0.1.0"
 description = "Retrieval-based Voice Conversion as an OBS plugin"
 readme = "README.md"
+license = "GPL-2.0-only"
 authors = [
     { name = "nayetdet", email = "jpmoreiracampos21@gmail.com" }
 ]
