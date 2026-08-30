@@ -1,0 +1,17 @@
+[project]
+name = "plugin-worker"
+version = "0.1.0"
+description = "Retrieval-based Voice Conversion as an OBS plugin"
+readme = "README.md"
+authors = [
+    { name = "nayetdet", email = "jpmoreiracampos21@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+plugin-worker = "plugin_worker:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
