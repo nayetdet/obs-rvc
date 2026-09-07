@@ -42,4 +42,4 @@ class SettingsHandler(BaseHandler[SettingsRequestSchema, SettingsResponseSchema]
             self.rvc.reset()
             return SettingsMapper.from_success()
         except ValidationError:
-            return SettingsMapper.from_error_message("invalid settings")
+            return SettingsMapper.from_error_message("Worker settings are invalid.")

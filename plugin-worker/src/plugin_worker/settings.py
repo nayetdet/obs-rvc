@@ -16,19 +16,12 @@ class Settings(BaseSettings):
         validate_assignment=True,
     )
 
-    # Protocol
-    action_convert: ClassVar[int] = 1
-    status_ok: ClassVar[int] = 0
-    status_error: ClassVar[int] = 1
-
-    # Worker IPC
     max_model_bytes: ClassVar[int] = 128
     max_index_path_bytes: ClassVar[int] = 512
     max_error_bytes: ClassVar[int] = 1024
     max_audio_bytes: ClassVar[int] = 4 * 1024 * 1024
     max_output_bytes: ClassVar[int] = 8 * 1024 * 1024
 
-    # Worker
     service_name: str = "obs/rvc"
     model_dir: Path = Path("models")
     model: str | None = None

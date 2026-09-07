@@ -8,7 +8,6 @@ from .base_request_schema import BaseRequestSchema
 
 class AudioRequestSchema(BaseRequestSchema):
     _fields_ = [
-        ("action", ctypes.c_uint8),
         ("audio_size", ctypes.c_uint32),
         ("model", ctypes.c_char * Settings.max_model_bytes),
         ("input_format", ctypes.c_char * 8),

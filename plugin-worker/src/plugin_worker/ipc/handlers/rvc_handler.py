@@ -4,7 +4,6 @@ from pydantic import ValidationError
 
 from ...core.rvc_inference import RVCInference
 from ...exceptions.rvc_inference_error import RVCInferenceError
-from ...exceptions.rvc_inference_model_not_found import RVCInferenceModelNotFoundError
 from ...mappers.audio_mapper import AudioMapper
 from .base_handler import BaseHandler
 from ...schemas.requests.audio_request_schema import AudioRequestSchema
@@ -29,11 +28,8 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
         self.rvc = rvc
 
     def handle(self, request: AudioRequestSchema) -> AudioResponseSchema:
-        if request.action != Settings.action_convert:
-            return AudioMapper.from_error_message("unsupported action")
-
         if request.audio_size == 0 or request.audio_size > Settings.max_audio_bytes:
-            return AudioMapper.from_error_message("invalid audio size")
+            return AudioMapper.from_error_message("Audio size is invalid.")
 
         try:
             options: RVCInferenceOptionsSchema = RVCInferenceOptionsSchema(
@@ -56,10 +52,9 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
             )
 
             if len(output) > Settings.max_output_bytes:
-                return AudioMapper.from_error_message("converted audio exceeds the IPC buffer")
-
+                return AudioMapper.from_error_message("Converted audio exceeds the IPC buffer.")
             return AudioMapper.from_audio(output, sample_rate)
         except ValidationError:
-            return AudioMapper.from_error_message("invalid inference options")
-        except (RVCInferenceError, RVCInferenceModelNotFoundError) as exc:
+            return AudioMapper.from_error_message("Inference options are invalid.")
+        except RVCInferenceError as exc:
             return AudioMapper.from_error_message(str(exc))

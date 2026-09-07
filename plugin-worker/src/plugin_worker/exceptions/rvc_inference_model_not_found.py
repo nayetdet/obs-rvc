@@ -1,8 +1,7 @@
 from typing import ClassVar
 
+from .rvc_inference_error import RVCInferenceError
 
-class RVCInferenceModelNotFoundError(RuntimeError):
-    message: ClassVar[str] = "RVC inference model was not found"
 
-    def __init__(self) -> None:
-        super().__init__(self.message)
+class RVCInferenceModelNotFoundError(RVCInferenceError):
+    message: ClassVar[str] = "RVC inference model was not found."
