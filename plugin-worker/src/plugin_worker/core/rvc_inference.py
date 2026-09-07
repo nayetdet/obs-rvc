@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 class RVCInference:
     models: dict[str, Any] = {}
+    model_locks: dict[str, threading.Lock] = {}
     lock: threading.Lock = threading.Lock()
     vc_class: Any = None
 
@@ -75,6 +76,9 @@ class RVCInference:
                 self.models[key] = self.vc_class()
                 self.models[key].get_vc(key)
 
+            model_lock: threading.Lock = self.model_locks.setdefault(key, threading.Lock())
+
+        with model_lock:
             with AudioUtils.input_file(audio, input_format) as input_path:
                 index_path: Path | None = (
                     Path(options.index_file).expanduser().resolve() if options.index_file else None
@@ -105,4 +109,5 @@ class RVCInference:
     def reset(self) -> None:
         with self.lock:
             self.models.clear()
+            self.model_locks.clear()
             self.vc_class = None
