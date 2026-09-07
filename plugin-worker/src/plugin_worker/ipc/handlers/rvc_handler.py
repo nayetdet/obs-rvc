@@ -5,28 +5,38 @@ from pydantic import ValidationError
 from ...core.rvc_inference import RVCInference
 from ...exceptions.rvc_inference_error import RVCInferenceError
 from ...exceptions.rvc_inference_model_not_found import RVCInferenceModelNotFoundError
+from ...mappers.audio_mapper import AudioMapper
+from .base_handler import BaseHandler
 from ...schemas.requests.audio_request_schema import AudioRequestSchema
 from ...schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
 from ...schemas.responses.audio_response_schema import AudioResponseSchema
-from ...settings import Settings
+from ...settings import Settings, settings
 from ...utils.text_utils import TextUtils
+from ..publishers.audio_publisher import AudioPublisher
+from ..subscribers.audio_subscriber import AudioSubscriber
 
 
-class RVCHandler:
-    rvc: RVCInference
-
+class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
     def __init__(self, rvc: RVCInference) -> None:
+        super().__init__(
+            settings.service_name,
+            AudioRequestSchema,
+            AudioResponseSchema,
+            AudioPublisher(),
+            AudioSubscriber(),
+        )
+
         self.rvc = rvc
 
     def handle(self, request: AudioRequestSchema) -> AudioResponseSchema:
         if request.action != Settings.action_convert:
-            return AudioResponseSchema.from_error("unsupported action")
+            return AudioMapper.from_error_message("unsupported action")
 
         if request.audio_size == 0 or request.audio_size > Settings.max_audio_bytes:
-            return AudioResponseSchema.from_error("invalid audio size")
+            return AudioMapper.from_error_message("invalid audio size")
 
         try:
-            options = RVCInferenceOptionsSchema(
+            options: RVCInferenceOptionsSchema = RVCInferenceOptionsSchema(
                 speaker=request.speaker,
                 f0_up_key=request.f0_up_key,
                 f0_method=TextUtils.decode(request.f0_method),
@@ -46,15 +56,10 @@ class RVCHandler:
             )
 
             if len(output) > Settings.max_output_bytes:
-                return AudioResponseSchema.from_error("converted audio exceeds the IPC buffer")
+                return AudioMapper.from_error_message("converted audio exceeds the IPC buffer")
 
-            response = AudioResponseSchema()
-            response.status = Settings.status_ok
-            response.audio_size = len(output)
-            response.sample_rate = sample_rate
-            response.audio[: len(output)] = output
-            return response
+            return AudioMapper.from_audio(output, sample_rate)
         except ValidationError:
-            return AudioResponseSchema.from_error("invalid inference options")
+            return AudioMapper.from_error_message("invalid inference options")
         except (RVCInferenceError, RVCInferenceModelNotFoundError) as exc:
-            return AudioResponseSchema.from_error(str(exc))
+            return AudioMapper.from_error_message(str(exc))

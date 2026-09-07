@@ -3,9 +3,10 @@ from __future__ import annotations
 import ctypes
 
 from ...settings import Settings
+from .base_request_schema import BaseRequestSchema
 
 
-class AudioRequestSchema(ctypes.Structure):
+class AudioRequestSchema(BaseRequestSchema):
     _fields_ = [
         ("action", ctypes.c_uint8),
         ("audio_size", ctypes.c_uint32),

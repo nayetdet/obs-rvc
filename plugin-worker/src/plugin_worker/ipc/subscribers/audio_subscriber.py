@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import iceoryx2 as iox2
+from .base_subscriber import BaseSubscriber
+from ...schemas.requests.audio_request_schema import AudioRequestSchema
 
 
-class AudioSubscriber:
-    @staticmethod
-    def receive(server: iox2.Server) -> iox2.ActiveRequest | None:
-        return server.receive()
+class AudioSubscriber(BaseSubscriber[AudioRequestSchema]):
+    pass

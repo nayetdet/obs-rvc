@@ -98,6 +98,11 @@ class RVCInference:
                 if error or output is None or target_sr is None:
                     raise RVCInferenceError()
 
-                buffer = BytesIO()
+                buffer: BytesIO = BytesIO()
                 sf.write(buffer, np.asarray(output, dtype=np.float32), target_sr, format="WAV", subtype="PCM_16")
                 return buffer.getvalue(), int(target_sr)
+
+    def reset(self) -> None:
+        with self.lock:
+            self.models.clear()
+            self.vc_class = None
