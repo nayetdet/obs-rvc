@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     max_error_bytes: ClassVar[int] = 1024
     max_audio_bytes: ClassVar[int] = 4 * 1024 * 1024
     max_output_bytes: ClassVar[int] = 8 * 1024 * 1024
+
     service_name: str = "obs/rvc"
     wait_ms: int = Field(default=10, ge=1, le=1000)
 

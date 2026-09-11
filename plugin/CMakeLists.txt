@@ -11,10 +11,25 @@ include(compilerconfig)
 include(defaults)
 include(helpers)
 
+include(FetchContent)
+
+set(BUILD_CXX ON CACHE BOOL "Build iceoryx2 C++ bindings" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build iceoryx2 examples" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Build iceoryx2 tests" FORCE)
+
+FetchContent_Declare(
+  iceoryx2
+  GIT_REPOSITORY https://github.com/eclipse-iceoryx/iceoryx2.git
+  GIT_TAG v0.9.3
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(iceoryx2)
+
 add_library(${CMAKE_PROJECT_NAME} MODULE)
 
 find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE iceoryx2-cxx::static-lib-cxx)
 
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
@@ -34,6 +49,15 @@ if(ENABLE_QT)
   )
 endif()
 
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.c)
+target_sources(
+  ${CMAKE_PROJECT_NAME}
+  PRIVATE
+    src/plugin-main.c
+    src/rvc/ipc/rvc-ipc.cpp
+    src/rvc/clients/settings/rvc-settings-client.cpp
+    src/rvc/clients/audio/rvc-audio-client.cpp
+)
+set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY C_STANDARD 11)
+set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 14)
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
