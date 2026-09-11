@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rvc-audio-transport.h"
-#include "../../core/base-client.hpp"
+#include "../base/base-client.hpp"
 
 #include <memory>
 
@@ -21,7 +21,7 @@ struct RvcAudioResponse final : rvc_audio_response_t
 class RvcAudioClient final : public core::BaseClient
 {
 public:
-	explicit RvcAudioClient(core::BaseNode &node);
+	explicit RvcAudioClient(core::Node &node);
 	~RvcAudioClient();
 
 	bool valid() const override;

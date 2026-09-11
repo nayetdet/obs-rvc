@@ -14,11 +14,11 @@ constexpr const char *RvcSettingsResponse::IOX2_TYPE_NAME;
 
 struct RvcSettingsClient::Impl
 {
-	std::unique_ptr<core::BaseService<RvcSettingsRequest, RvcSettingsResponse>> service;
-	std::unique_ptr<core::BaseClientPort<RvcSettingsRequest, RvcSettingsResponse>> client;
+	std::unique_ptr<core::Service<RvcSettingsRequest, RvcSettingsResponse>> service;
+	std::unique_ptr<core::Client<RvcSettingsRequest, RvcSettingsResponse>> client;
 };
 
-RvcSettingsClient::RvcSettingsClient(core::BaseNode &node) : core::BaseClient(node), impl(std::make_unique<Impl>())
+RvcSettingsClient::RvcSettingsClient(core::Node &node) : core::BaseClient(node), impl(std::make_unique<Impl>())
 {
 	(void)open(kServiceName, impl->service, impl->client);
 }

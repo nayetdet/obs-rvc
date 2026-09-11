@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rvc-settings-transport.h"
-#include "../../core/base-client.hpp"
+#include "../base/base-client.hpp"
 
 #include <memory>
 
@@ -21,7 +21,7 @@ struct RvcSettingsResponse final : rvc_settings_response_t
 class RvcSettingsClient final : public core::BaseClient
 {
 public:
-	explicit RvcSettingsClient(core::BaseNode &node);
+	explicit RvcSettingsClient(core::Node &node);
 	~RvcSettingsClient();
 
 	bool valid() const override;

@@ -1,4 +1,4 @@
-#include "rvc.h"
+#include "rvc-ipc.h"
 #include "audio/rvc-audio-client.hpp"
 #include "settings/rvc-settings-client.hpp"
 
@@ -6,7 +6,7 @@
 
 struct rvc_ipc
 {
-	std::unique_ptr<core::BaseNode> node;
+	std::unique_ptr<core::Node> node;
 	std::unique_ptr<rvc::RvcSettingsClient> settings;
 	std::unique_ptr<rvc::RvcAudioClient> audio;
 };
@@ -41,7 +41,7 @@ extern "C" bool rvc_ipc_create(rvc_ipc_t **context)
 		return false;
 
 	auto new_context = std::make_unique<rvc_ipc>();
-	new_context->node = std::make_unique<core::BaseNode>(std::move(created_node.value()));
+	new_context->node = std::make_unique<core::Node>(std::move(created_node.value()));
 	new_context->settings = std::make_unique<rvc::RvcSettingsClient>(*new_context->node);
 	new_context->audio = std::make_unique<rvc::RvcAudioClient>(*new_context->node);
 

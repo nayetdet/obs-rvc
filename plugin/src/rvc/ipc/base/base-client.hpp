@@ -16,10 +16,10 @@ public:
 	virtual bool valid() const = 0;
 
 protected:
-	explicit BaseClient(BaseNode &node) : node(node) {}
+	explicit BaseClient(Node &node) : node(node) {}
 
 	template<typename Request, typename Response>
-	bool open(const char *service_name, std::unique_ptr<BaseService<Request, Response>> &service, std::unique_ptr<BaseClientPort<Request, Response>> &client)
+	bool open(const char *service_name, std::unique_ptr<Service<Request, Response>> &service, std::unique_ptr<Client<Request, Response>> &client)
 	{
 		auto name = iox2::ServiceName::create(service_name);
 		if (!name)
@@ -32,17 +32,17 @@ protected:
 		if (!opened_service)
 			return false;
 
-		service = std::make_unique<BaseService<Request, Response>>(std::move(opened_service.value()));
+		service = std::make_unique<Service<Request, Response>>(std::move(opened_service.value()));
 		auto created_client = service->client_builder().create();
 		if (!created_client)
 			return false;
 
-		client = std::make_unique<BaseClientPort<Request, Response>>(std::move(created_client.value()));
+		client = std::make_unique<Client<Request, Response>>(std::move(created_client.value()));
 		return true;
 	}
 
 	template<typename Request, typename Response>
-	BaseTransportStatus exchange(BaseClientPort<Request, Response> &client, const Request &request, Response &response, uint32_t timeout_ms)
+	BaseTransportStatus exchange(Client<Request, Response> &client, const Request &request, Response &response, uint32_t timeout_ms)
 	{
 		auto loaned_request = client.loan_uninit();
 		if (!loaned_request)
@@ -71,7 +71,7 @@ protected:
 		return BaseTransportStatus::Timeout;
 	}
 
-	BaseNode &node;
+	Node &node;
 };
 
 }

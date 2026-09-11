@@ -14,11 +14,11 @@ constexpr const char *RvcAudioResponse::IOX2_TYPE_NAME;
 
 struct RvcAudioClient::Impl
 {
-	std::unique_ptr<core::BaseService<RvcAudioRequest, RvcAudioResponse>> service;
-	std::unique_ptr<core::BaseClientPort<RvcAudioRequest, RvcAudioResponse>> client;
+	std::unique_ptr<core::Service<RvcAudioRequest, RvcAudioResponse>> service;
+	std::unique_ptr<core::Client<RvcAudioRequest, RvcAudioResponse>> client;
 };
 
-RvcAudioClient::RvcAudioClient(core::BaseNode &node) : core::BaseClient(node), impl(std::make_unique<Impl>())
+RvcAudioClient::RvcAudioClient(core::Node &node) : core::BaseClient(node), impl(std::make_unique<Impl>())
 {
 	(void)open(kServiceName, impl->service, impl->client);
 }
