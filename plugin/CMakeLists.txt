@@ -32,6 +32,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE iceoryx2-cxx::static-lib-cxx)
 
 if(APPLE)
+  set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY XCODE_LINK_BUILD_PHASE_MODE NONE)
   target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE $<TARGET_FILE_DIR:iceoryx2-cxx::static-lib-cxx>)
 endif()
 
