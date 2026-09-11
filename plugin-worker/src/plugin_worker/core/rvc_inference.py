@@ -13,7 +13,7 @@ import soundfile as sf
 from ..exceptions.rvc_inference_error import RVCInferenceError
 from ..exceptions.rvc_inference_model_not_found import RVCInferenceModelNotFoundError
 from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
-from ..settings import settings
+from ..runtime import runtime
 from ..utils.audio_utils import AudioUtils
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,14 @@ class RVCInference:
         if not audio:
             raise RVCInferenceError()
 
-        model_dir: Path = settings.model_dir.expanduser().resolve()
-        if not model and not settings.model:
+        if runtime.model_dir is None or runtime.hubert_path is None or runtime.rmvpe_root is None:
+            raise RVCInferenceError()
+
+        model_dir: Path = runtime.model_dir.expanduser().resolve()
+        if not model and not runtime.model:
             raise RVCInferenceModelNotFoundError()
 
-        model_path: Path = Path(model or settings.model or "")
+        model_path: Path = Path(model or runtime.model or "")
         model_path = model_path.resolve() if model_path.is_absolute() else (model_dir / model_path).resolve()
         try:
             model_path.relative_to(model_dir)
@@ -51,18 +54,15 @@ class RVCInference:
 
         with self.lock:
             if self.vc_class is None:
-                if settings.hubert_path is None or not settings.hubert_path.expanduser().resolve().is_file():
+                if not runtime.hubert_path.expanduser().resolve().is_file():
                     raise RVCInferenceError()
 
-                if settings.rmvpe_root is None:
-                    raise RVCInferenceError()
-
-                rmvpe_root: Path = settings.rmvpe_root.expanduser().resolve()
+                rmvpe_root: Path = runtime.rmvpe_root.expanduser().resolve()
                 if not (rmvpe_root / "rmvpe.pt").is_file():
                     raise RVCInferenceError()
 
                 os.environ.update(
-                    hubert_path=str(settings.hubert_path.expanduser().resolve()),
+                    hubert_path=str(runtime.hubert_path.expanduser().resolve()),
                     rmvpe_root=str(rmvpe_root),
                     weight_root=str(model_dir),
                 )
@@ -85,6 +85,9 @@ class RVCInference:
                 )
 
                 vc: Any = self.models[key]
+                target_sr: int | None
+                output: Any
+                error: Any
                 target_sr, output, _, error = vc.vc_inference(
                     options.speaker,
                     input_path,
@@ -96,7 +99,7 @@ class RVCInference:
                     resample_sr=options.resample_sr,
                     rms_mix_rate=options.rms_mix_rate,
                     protect=options.protect,
-                    hubert_path=settings.hubert_path,
+                    hubert_path=runtime.hubert_path,
                 )
 
                 if error or output is None or target_sr is None:

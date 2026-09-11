@@ -9,7 +9,7 @@ from .base_handler import BaseHandler
 from ...schemas.requests.audio_request_schema import AudioRequestSchema
 from ...schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
 from ...schemas.responses.audio_response_schema import AudioResponseSchema
-from ...settings import Settings, settings
+from ...settings import settings
 from ...utils.text_utils import TextUtils
 from ..publishers.audio_publisher import AudioPublisher
 from ..subscribers.audio_subscriber import AudioSubscriber
@@ -28,7 +28,7 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
         self.rvc = rvc
 
     def handle(self, request: AudioRequestSchema) -> AudioResponseSchema:
-        if request.audio_size == 0 or request.audio_size > Settings.max_audio_bytes:
+        if request.audio_size == 0 or request.audio_size > settings.max_audio_bytes:
             return AudioMapper.from_error_message("Audio size is invalid.")
 
         try:
@@ -44,6 +44,8 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
                 protect=request.protect,
             )
 
+            output: bytes
+            sample_rate: int
             output, sample_rate = self.rvc.convert(
                 bytes(request.audio[: request.audio_size]),
                 TextUtils.decode(request.model) or None,
@@ -51,7 +53,7 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
                 options,
             )
 
-            if len(output) > Settings.max_output_bytes:
+            if len(output) > settings.max_output_bytes:
                 return AudioMapper.from_error_message("Converted audio exceeds the IPC buffer.")
             return AudioMapper.from_audio(output, sample_rate)
         except ValidationError:

@@ -9,7 +9,7 @@ from .ipc.handlers.rvc_handler import RVCHandler
 from .ipc.handlers.settings_handler import SettingsHandler
 from .settings import settings
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 def main() -> None:
