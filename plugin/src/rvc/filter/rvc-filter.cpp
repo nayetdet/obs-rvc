@@ -119,6 +119,7 @@ bool encode_wav(const obs_audio_data *audio, uint32_t sample_rate, uint16_t chan
 			samples[offset + 1U] = static_cast<uint8_t>((sample >> 8) & 0xFF);
 		}
 	}
+
 	return true;
 }
 
@@ -161,6 +162,7 @@ bool decode_wav(const uint8_t *data, uint32_t size, uint32_t &sample_rate, uint1
 	samples.resize(sample_data_size / sizeof(int16_t));
 	for (size_t index = 0U; index < samples.size(); ++index)
 		samples[index] = static_cast<int16_t>(read_u16(sample_data + index * sizeof(int16_t)));
+
 	return true;
 }
 
@@ -311,6 +313,7 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 		auto *output = reinterpret_cast<float *>(audio->data[channel]);
 		if (output == nullptr)
 			return audio;
+
 		const uint16_t source_channel = std::min<uint16_t>(channel, output_channels - 1U);
 		for (uint32_t frame = 0U; frame < audio->frames; ++frame) {
 			const int16_t sample =

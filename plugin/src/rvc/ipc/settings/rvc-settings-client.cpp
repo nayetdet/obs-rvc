@@ -38,6 +38,7 @@ core::BaseTransportStatus RvcSettingsClient::configure(const rvc_settings_reques
 	std::memcpy(&request_payload, &request, sizeof(request_payload));
 	const core::BaseTransportStatus status = exchange(*impl->client, request_payload, response_payload, timeout_ms);
 	std::memcpy(&response, &response_payload, sizeof(response));
+
 	if (status != core::BaseTransportStatus::Ok)
 		return status;
 

@@ -14,8 +14,8 @@ bool obs_module_load(void)
 		obs_log(LOG_ERROR, "Unable to initialize the OBS RVC iceoryx IPC client");
 		return false;
 	}
-	rvc_filter_register(rvc_ipc);
 
+	rvc_filter_register(rvc_ipc);
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
 	return true;
 }
