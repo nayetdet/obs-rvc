@@ -9,6 +9,7 @@
 !/data
 !/src
 !.clang-format
+!.gersemirc
 !.gersemi
 !.gitignore
 !buildspec.json
