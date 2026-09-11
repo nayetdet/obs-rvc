@@ -2,12 +2,14 @@
 /*
 
 # Keep repository-level configuration and metadata
-!/.github
 !/.devcontainer
+!/.githooks
+!/.github
 !/plugin
 !/plugin-worker
 !.gitignore
 !LICENSE
+!/Makefile
 !README.md
 
 # Exclude lock files

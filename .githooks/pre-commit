@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+mapfile -d '' files < <(
+	git diff --cached --name-only -z --diff-filter=ACMR -- \
+		'*.c' '*.h' '*.cpp' '*.hpp' '*.m' '*.mm'
+)
+
+if ((${#files[@]})); then
+	plugin/build-aux/run-clang-format --fail-error --check "${files[@]}"
+fi
+
+mapfile -d '' files < <(
+	git diff --cached --name-only -z --diff-filter=ACMR -- \
+		'*.cmake' '*CMakeLists.txt'
+)
+
+if ((${#files[@]})); then
+	plugin/build-aux/run-gersemi --fail-error --check "${files[@]}"
+fi
