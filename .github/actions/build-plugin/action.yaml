@@ -32,6 +32,10 @@ runs:
       with:
         toolchain: 1.85.0
 
+    - name: Select Rust toolchain
+      shell: bash
+      run: rustup default 1.85.0
+
     - name: Run macOS Build
       if: runner.os == 'macOS'
       shell: zsh --no-rcs --errexit --pipefail {0}

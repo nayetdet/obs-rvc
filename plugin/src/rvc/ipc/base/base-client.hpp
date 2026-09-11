@@ -6,11 +6,9 @@
 #include <cstring>
 #include <memory>
 
-namespace core
-{
+namespace core {
 
-class BaseClient
-{
+class BaseClient {
 public:
 	virtual ~BaseClient() = default;
 	virtual bool valid() const = 0;
@@ -19,15 +17,16 @@ protected:
 	explicit BaseClient(Node &node) : node(node) {}
 
 	template<typename Request, typename Response>
-	bool open(const char *service_name, std::unique_ptr<Service<Request, Response>> &service, std::unique_ptr<Client<Request, Response>> &client)
+	bool open(const char *service_name, std::unique_ptr<Service<Request, Response>> &service,
+		  std::unique_ptr<Client<Request, Response>> &client)
 	{
 		auto name = iox2::ServiceName::create(service_name);
 		if (!name)
 			return false;
 
 		auto opened_service = node.service_builder(name.value())
-			.template request_response<Request, Response>()
-			.open_or_create();
+					      .template request_response<Request, Response>()
+					      .open_or_create();
 
 		if (!opened_service)
 			return false;
@@ -42,7 +41,8 @@ protected:
 	}
 
 	template<typename Request, typename Response>
-	BaseTransportStatus exchange(Client<Request, Response> &client, const Request &request, Response &response, uint32_t timeout_ms)
+	BaseTransportStatus exchange(Client<Request, Response> &client, const Request &request, Response &response,
+				     uint32_t timeout_ms)
 	{
 		auto loaned_request = client.loan_uninit();
 		if (!loaned_request)
@@ -53,14 +53,12 @@ protected:
 		if (!pending_response)
 			return BaseTransportStatus::TransportError;
 
-		for (uint32_t elapsed_ms = 0U; elapsed_ms < timeout_ms; ++elapsed_ms)
-		{
+		for (uint32_t elapsed_ms = 0U; elapsed_ms < timeout_ms; ++elapsed_ms) {
 			auto received_response = pending_response.value().receive();
 			if (!received_response)
 				return BaseTransportStatus::TransportError;
 
-			if (received_response.value().has_value())
-			{
+			if (received_response.value().has_value()) {
 				std::memcpy(&response, &received_response.value()->payload(), sizeof(response));
 				return BaseTransportStatus::Ok;
 			}
@@ -74,4 +72,4 @@ protected:
 	Node &node;
 };
 
-}
+} // namespace core

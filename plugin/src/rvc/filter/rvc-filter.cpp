@@ -15,8 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace
-{
+namespace {
 constexpr char kModel[] = "model";
 constexpr char kModelDirectory[] = "model_dir";
 constexpr char kHubertPath[] = "hubert_path";
@@ -33,8 +32,7 @@ constexpr char kProtect[] = "protect";
 
 rvc_ipc_t *g_ipc = nullptr;
 
-struct RvcFilterData
-{
+struct RvcFilterData {
 	std::mutex mutex;
 	std::string model;
 	std::string index_file;
@@ -49,8 +47,7 @@ struct RvcFilterData
 	bool configured = false;
 };
 
-template<size_t Size>
-void copy_string(char (&destination)[Size], const char *source)
+template<size_t Size> void copy_string(char (&destination)[Size], const char *source)
 {
 	std::memset(destination, 0, Size);
 	if (source != nullptr)
@@ -87,8 +84,7 @@ bool encode_wav(const obs_audio_data *audio, uint32_t sample_rate, uint16_t chan
 	if (audio == nullptr || audio->frames == 0U || channels == 0U || channels > MAX_AV_PLANES)
 		return false;
 
-	for (uint16_t channel = 0U; channel < channels; ++channel)
-	{
+	for (uint16_t channel = 0U; channel < channels; ++channel) {
 		if (audio->data[channel] == nullptr)
 			return false;
 	}
@@ -113,10 +109,8 @@ bool encode_wav(const obs_audio_data *audio, uint32_t sample_rate, uint16_t chan
 	write_u32(wav, 40U, static_cast<uint32_t>(data_size));
 
 	auto *samples = wav.data() + 44U;
-	for (uint32_t frame = 0U; frame < audio->frames; ++frame)
-	{
-		for (uint16_t channel = 0U; channel < channels; ++channel)
-		{
+	for (uint32_t frame = 0U; frame < audio->frames; ++frame) {
+		for (uint16_t channel = 0U; channel < channels; ++channel) {
 			const auto *input = reinterpret_cast<const float *>(audio->data[channel]);
 			const float value = std::max(-1.0F, std::min(1.0F, input[frame]));
 			const int16_t sample = static_cast<int16_t>(std::lrint(value * 32767.0F));
@@ -129,9 +123,10 @@ bool encode_wav(const obs_audio_data *audio, uint32_t sample_rate, uint16_t chan
 }
 
 bool decode_wav(const uint8_t *data, uint32_t size, uint32_t &sample_rate, uint16_t &channels,
-		       std::vector<int16_t> &samples)
+		std::vector<int16_t> &samples)
 {
-	if (data == nullptr || size < 44U || std::memcmp(data, "RIFF", 4U) != 0 || std::memcmp(data + 8U, "WAVE", 4U) != 0)
+	if (data == nullptr || size < 44U || std::memcmp(data, "RIFF", 4U) != 0 ||
+	    std::memcmp(data + 8U, "WAVE", 4U) != 0)
 		return false;
 
 	uint16_t format = 0U;
@@ -139,23 +134,19 @@ bool decode_wav(const uint8_t *data, uint32_t size, uint32_t &sample_rate, uint1
 	const uint8_t *sample_data = nullptr;
 	uint32_t sample_data_size = 0U;
 	uint32_t offset = 12U;
-	while (offset + 8U <= size)
-	{
+	while (offset + 8U <= size) {
 		const uint8_t *chunk = data + offset;
 		const uint32_t chunk_size = read_u32(chunk + 4U);
 		offset += 8U;
 		if (chunk_size > size - offset)
 			return false;
 
-		if (std::memcmp(chunk, "fmt ", 4U) == 0 && chunk_size >= 16U)
-		{
+		if (std::memcmp(chunk, "fmt ", 4U) == 0 && chunk_size >= 16U) {
 			format = read_u16(data + offset);
 			channels = read_u16(data + offset + 2U);
 			sample_rate = read_u32(data + offset + 4U);
 			bits_per_sample = read_u16(data + offset + 14U);
-		}
-		else if (std::memcmp(chunk, "data", 4U) == 0)
-		{
+		} else if (std::memcmp(chunk, "data", 4U) == 0) {
 			sample_data = data + offset;
 			sample_data_size = chunk_size;
 		}
@@ -199,7 +190,7 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_path(properties, kRmvpeRoot, "RMVPE directory", OBS_PATH_DIRECTORY, nullptr, nullptr);
 
 	obs_property_t *f0_method = obs_properties_add_list(properties, kF0Method, "F0 method", OBS_COMBO_TYPE_LIST,
-									OBS_COMBO_FORMAT_STRING);
+							    OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(f0_method, "RMVPE", "rmvpe");
 	obs_property_list_add_string(f0_method, "Harvest", "harvest");
 	obs_property_list_add_string(f0_method, "Crepe", "crepe");
@@ -234,8 +225,7 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	copy_string(request.rmvpe_root, obs_data_get_string(settings, kRmvpeRoot));
 
 	const enum rvc_ipc_status status = rvc_ipc_configure(g_ipc, &request, &response, 1000U);
-	if (status != RVC_IPC_STATUS_OK)
-	{
+	if (status != RVC_IPC_STATUS_OK) {
 		obs_log(LOG_ERROR, "Unable to configure RVC worker: status=%d", status);
 		data->configured = false;
 		return;
@@ -313,19 +303,18 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 		return audio;
 
 	const size_t output_frames = output_samples.size() / output_channels;
-	if (output_sample_rate != audio_info.samples_per_sec || output_frames != audio->frames || output_channels == 0U ||
-	    output_channels > MAX_AV_PLANES)
+	if (output_sample_rate != audio_info.samples_per_sec || output_frames != audio->frames ||
+	    output_channels == 0U || output_channels > MAX_AV_PLANES)
 		return audio;
 
-	for (uint16_t channel = 0U; channel < channels; ++channel)
-	{
+	for (uint16_t channel = 0U; channel < channels; ++channel) {
 		auto *output = reinterpret_cast<float *>(audio->data[channel]);
 		if (output == nullptr)
 			return audio;
 		const uint16_t source_channel = std::min<uint16_t>(channel, output_channels - 1U);
-		for (uint32_t frame = 0U; frame < audio->frames; ++frame)
-		{
-			const int16_t sample = output_samples[static_cast<size_t>(frame) * output_channels + source_channel];
+		for (uint32_t frame = 0U; frame < audio->frames; ++frame) {
+			const int16_t sample =
+				output_samples[static_cast<size_t>(frame) * output_channels + source_channel];
 			output[frame] = static_cast<float>(sample) / 32768.0F;
 		}
 	}
@@ -334,7 +323,7 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 }
 
 struct obs_source_info rvc_filter_info{};
-}
+} // namespace
 
 extern "C" void rvc_filter_register(rvc_ipc_t *ipc)
 {

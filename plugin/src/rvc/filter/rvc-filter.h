@@ -3,8 +3,7 @@
 #include "../ipc/rvc-ipc.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 void rvc_filter_register(rvc_ipc_t *ipc);

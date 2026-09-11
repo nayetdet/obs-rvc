@@ -1,10 +1,8 @@
 #pragma once
 
-namespace core
-{
+namespace core {
 
-enum class BaseTransportStatus
-{
+enum class BaseTransportStatus {
 	Ok,
 	RemoteError,
 	InvalidArgument,

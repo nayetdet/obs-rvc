@@ -9,14 +9,12 @@
 #define RVC_AUDIO_MAX_INPUT_BYTES (4U * 1024U * 1024U)
 #define RVC_AUDIO_MAX_OUTPUT_BYTES (8U * 1024U * 1024U)
 
-enum rvc_audio_response_status
-{
+enum rvc_audio_response_status {
 	RVC_AUDIO_RESPONSE_OK = 0,
 	RVC_AUDIO_RESPONSE_ERROR = 1,
 };
 
-typedef struct rvc_audio_request
-{
+typedef struct rvc_audio_request {
 	uint32_t audio_size;
 	char model[RVC_AUDIO_MAX_MODEL_BYTES];
 	char input_format[8];
@@ -32,8 +30,7 @@ typedef struct rvc_audio_request
 	uint8_t audio[RVC_AUDIO_MAX_INPUT_BYTES];
 } rvc_audio_request_t;
 
-typedef struct rvc_audio_response
-{
+typedef struct rvc_audio_response {
 	uint8_t status;
 	uint32_t audio_size;
 	uint32_t sample_rate;

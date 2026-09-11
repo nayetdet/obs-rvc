@@ -2,8 +2,7 @@
 
 #include <iox2/iceoryx2.hpp>
 
-namespace core
-{
+namespace core {
 
 using Node = iox2::Node<iox2::ServiceType::Ipc>;
 
@@ -12,4 +11,4 @@ using Service = iox2::PortFactoryRequestResponse<iox2::ServiceType::Ipc, Request
 
 template<typename Request, typename Response>
 using Client = iox2::Client<iox2::ServiceType::Ipc, Request, void, Response, void>;
-}
+} // namespace core

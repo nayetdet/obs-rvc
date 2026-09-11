@@ -4,8 +4,7 @@
 
 #include <memory>
 
-struct rvc_ipc
-{
+struct rvc_ipc {
 	std::unique_ptr<core::Node> node;
 	std::unique_ptr<rvc::RvcSettingsClient> settings;
 	std::unique_ptr<rvc::RvcAudioClient> audio;
@@ -13,8 +12,7 @@ struct rvc_ipc
 
 static enum rvc_ipc_status to_ipc_status(core::BaseTransportStatus status)
 {
-	switch (status)
-	{
+	switch (status) {
 	case core::BaseTransportStatus::Ok:
 		return RVC_IPC_STATUS_OK;
 	case core::BaseTransportStatus::RemoteError:
@@ -57,7 +55,8 @@ extern "C" void rvc_ipc_destroy(rvc_ipc_t *context)
 	delete context;
 }
 
-extern "C" enum rvc_ipc_status rvc_ipc_configure(rvc_ipc_t *context, const rvc_settings_request_t *request, rvc_settings_response_t *response, uint32_t timeout_ms)
+extern "C" enum rvc_ipc_status rvc_ipc_configure(rvc_ipc_t *context, const rvc_settings_request_t *request,
+						 rvc_settings_response_t *response, uint32_t timeout_ms)
 {
 	if (context == nullptr || request == nullptr || response == nullptr || timeout_ms == 0U)
 		return RVC_IPC_STATUS_INVALID_ARGUMENT;
@@ -65,7 +64,8 @@ extern "C" enum rvc_ipc_status rvc_ipc_configure(rvc_ipc_t *context, const rvc_s
 	return to_ipc_status(context->settings->configure(*request, *response, timeout_ms));
 }
 
-extern "C" enum rvc_ipc_status rvc_ipc_convert(rvc_ipc_t *context, const rvc_audio_request_t *request, rvc_audio_response_t *response, uint32_t timeout_ms)
+extern "C" enum rvc_ipc_status rvc_ipc_convert(rvc_ipc_t *context, const rvc_audio_request_t *request,
+					       rvc_audio_response_t *response, uint32_t timeout_ms)
 {
 	if (context == nullptr || request == nullptr || response == nullptr || timeout_ms == 0U ||
 	    request->audio_size > RVC_AUDIO_MAX_INPUT_BYTES)
