@@ -1,6 +1,6 @@
 #include <obs-module.h>
 #include <plugin-support.h>
-#include "rvc/ipc/rvc-ipc.h"
+#include "rvc/rvc.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")

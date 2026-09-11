@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "../clients/audio/rvc-audio-client-protocol.h"
-#include "../clients/settings/rvc-settings-client-protocol.h"
+#include "audio/rvc-audio-transport.h"
+#include "settings/rvc-settings-transport.h"
 
 #ifdef __cplusplus
 extern "C"

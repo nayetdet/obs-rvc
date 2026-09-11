@@ -53,9 +53,9 @@ target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
     src/plugin-main.c
-    src/rvc/ipc/rvc-ipc.cpp
-    src/rvc/clients/settings/rvc-settings-client.cpp
-    src/rvc/clients/audio/rvc-audio-client.cpp
+    src/rvc/rvc.cpp
+    src/rvc/settings/rvc-settings-client.cpp
+    src/rvc/audio/rvc-audio-client.cpp
 )
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY C_STANDARD 11)
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 14)
