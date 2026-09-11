@@ -31,6 +31,14 @@ find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE iceoryx2-cxx::static-lib-cxx)
 
+if(APPLE)
+  target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE $<TARGET_FILE_DIR:iceoryx2-cxx::static-lib-cxx>)
+endif()
+
+if(MSVC)
+  target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /wd4068)
+endif()
+
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
