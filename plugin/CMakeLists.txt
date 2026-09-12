@@ -22,6 +22,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/eclipse-iceoryx/iceoryx2.git
   GIT_TAG v0.9.3
   GIT_SHALLOW TRUE
+  EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(iceoryx2)
 
@@ -32,11 +33,6 @@ if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
   set(ICEORYX2_RUST_X86_TARGET_DIR "${CMAKE_BINARY_DIR}/rust/x86_64-apple-darwin")
   set(ICEORYX2_RUST_X86_ARTIFACT_DIR "${ICEORYX2_RUST_X86_TARGET_DIR}/x86_64-apple-darwin/release")
   set(ICEORYX2_RUST_NATIVE_ARTIFACT_DIR "${CMAKE_BINARY_DIR}/rust/native/release")
-  set(ICEORYX2_CXX_ARTIFACT_DIR "${CMAKE_BINARY_DIR}/_deps/iceoryx2-build/iceoryx2-cxx/$<CONFIG>")
-  set(
-    ICEORYX2_CXX_OBJECT_ARCHIVE
-    "${CMAKE_BINARY_DIR}/build/iceoryx2-cxx-object-lib.build/$<CONFIG>/libiceoryx2-cxx-object-lib.a"
-  )
 
   add_custom_target(
     iceoryx2-ffi-c-universal
@@ -59,9 +55,7 @@ if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
     COMMAND
       "${CMAKE_COMMAND}" -E copy "${ICEORYX2_RUST_NATIVE_ARTIFACT_DIR}/libiceoryx2_ffi_c.universal.dylib"
       "${ICEORYX2_RUST_NATIVE_ARTIFACT_DIR}/libiceoryx2_ffi_c.dylib"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${ICEORYX2_CXX_ARTIFACT_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E copy "${ICEORYX2_CXX_OBJECT_ARCHIVE}" "${ICEORYX2_CXX_ARTIFACT_DIR}/libiceoryx2_cxx.a"
-    DEPENDS iceoryx2-ffi-c-build-step iceoryx2-cxx-object-lib
+    DEPENDS iceoryx2-ffi-c-build-step
     WORKING_DIRECTORY "${iceoryx2_SOURCE_DIR}"
     VERBATIM
   )
