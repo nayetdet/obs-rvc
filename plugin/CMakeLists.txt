@@ -29,11 +29,11 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 
 find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE iceoryx2-cxx::static-lib-cxx)
 
 if(APPLE)
-  add_dependencies(${CMAKE_PROJECT_NAME} static-lib-cxx)
-  set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY XCODE_LINK_BUILD_PHASE_MODE BUILT_ONLY)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE iceoryx2-cxx-object-lib iceoryx2-c::static-lib)
+else()
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE iceoryx2-cxx::static-lib-cxx)
 endif()
 
 if(MSVC)
