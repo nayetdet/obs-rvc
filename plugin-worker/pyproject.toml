@@ -13,6 +13,8 @@ dependencies = [
     "pydantic>=2.0,<3.0",
     "pydantic-settings>=2.0,<3.0",
     "rvc",
+    "torch",
+    "torchaudio",
 ]
 
 [project.scripts]
@@ -24,3 +26,10 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 rvc = { git = "https://github.com/nayetdet/Retrieval-based-Voice-Conversion" }
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

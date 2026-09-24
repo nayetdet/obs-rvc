@@ -1,4 +1,4 @@
-from .main import main
+from plugin_worker.main import main
 
 
 if __name__ == "__main__":

@@ -117,20 +117,42 @@ set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
 
 set(WORKER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../plugin-worker")
+set(WORKER_BUNDLE_DIR "${CMAKE_CURRENT_BINARY_DIR}/worker-bundle")
+set(WORKER_BUNDLE_STAMP "${WORKER_BUNDLE_DIR}/complete")
+file(GLOB_RECURSE WORKER_SOURCES CONFIGURE_DEPENDS "${WORKER_DIR}/src/*.py")
+find_program(UV_EXECUTABLE uv REQUIRED)
+if(UNIX AND NOT APPLE)
+  find_program(WORKER_PYTHON NAMES python3.12 python3 PATHS /usr/bin NO_DEFAULT_PATH REQUIRED)
+  set(UV_PYTHON_ARGS --python "${WORKER_PYTHON}")
+endif()
+
+add_custom_command(
+  OUTPUT "${WORKER_BUNDLE_STAMP}"
+  COMMAND
+    "${UV_EXECUTABLE}" run --locked --project "${WORKER_DIR}" ${UV_PYTHON_ARGS} --with "pyinstaller>=6.11,<7" python
+    "${WORKER_DIR}/scripts/build_bundle.py" --output "${WORKER_BUNDLE_DIR}"
+  DEPENDS
+    "${WORKER_DIR}/pyproject.toml"
+    "${WORKER_DIR}/uv.lock"
+    "${WORKER_DIR}/scripts/build_bundle.py"
+    ${WORKER_SOURCES}
+  COMMAND "${CMAKE_COMMAND}" -E touch "${WORKER_BUNDLE_STAMP}"
+  WORKING_DIRECTORY "${WORKER_DIR}"
+  COMMENT "Bundle OBS RVC Python worker"
+  VERBATIM
+)
+add_custom_target(obs-rvc-worker ALL DEPENDS "${WORKER_BUNDLE_STAMP}")
+add_dependencies(${CMAKE_PROJECT_NAME} obs-rvc-worker)
+
 if(WIN32)
   set(WORKER_DEST "${CMAKE_PROJECT_NAME}/data/worker")
+elseif(APPLE)
+  set(WORKER_DEST "${CMAKE_PROJECT_NAME}.plugin/Contents/Resources/worker")
 else()
   set(WORKER_DEST "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/worker")
 endif()
 
-install(
-  DIRECTORY "${WORKER_DIR}/"
-  DESTINATION "${WORKER_DEST}"
-  USE_SOURCE_PERMISSIONS
-  PATTERN ".git" EXCLUDE
-  PATTERN ".venv" EXCLUDE
-  PATTERN "__pycache__" EXCLUDE
-)
+install(DIRECTORY "${WORKER_BUNDLE_DIR}/obs-rvc-worker/" DESTINATION "${WORKER_DEST}" USE_SOURCE_PERMISSIONS)
 
 add_custom_command(
   TARGET ${CMAKE_PROJECT_NAME}
@@ -138,7 +160,7 @@ add_custom_command(
   COMMAND
     "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
   COMMAND
-    "${CMAKE_COMMAND}" -E copy_directory "${WORKER_DIR}"
+    "${CMAKE_COMMAND}" -E copy_directory "${WORKER_BUNDLE_DIR}/obs-rvc-worker"
     "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
   COMMENT "Copy OBS RVC Python worker"
   VERBATIM

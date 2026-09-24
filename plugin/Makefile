@@ -12,7 +12,7 @@ else
   BUILD_DIR    := build_x86_64
 endif
 
-.PHONY: build
+.PHONY: build install
 
 build:
 	cmake --preset $(BUILD_PRESET)
@@ -20,3 +20,6 @@ build:
 	cmake --install $(BUILD_DIR) \
 		--config $(BUILD_CONFIG) \
 		--prefix $(RELEASE_DIR)
+
+install: build
+	cmake --install $(BUILD_DIR) --config $(BUILD_CONFIG)
