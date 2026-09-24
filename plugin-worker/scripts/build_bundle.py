@@ -25,6 +25,8 @@ def main() -> None:
         "obs-rvc-worker",
         "--paths",
         str(ROOT / "src"),
+        "--additional-hooks-dir",
+        str(ROOT / "scripts" / "pyinstaller-hooks"),
         "--distpath",
         str(args.output.resolve()),
         "--workpath",
@@ -35,17 +37,7 @@ def main() -> None:
         "rvc",
     ]
 
-    for package in (
-        "iceoryx2",
-        "rvc",
-        "torch",
-        "torchaudio",
-        "torchcrepe",
-        "fairseq",
-        "librosa",
-        "soundfile",
-    ):
-        command.extend(("--collect-all", package))
+    command.extend(("--collect-data", "rvc", "--collect-data", "torchcrepe"))
 
     command.append(str(ROOT / "src" / "plugin_worker" / "__main__.py"))
     subprocess.run(command, check=True)

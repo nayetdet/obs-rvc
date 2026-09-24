@@ -119,7 +119,7 @@ set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_nam
 set(WORKER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../plugin-worker")
 set(WORKER_BUNDLE_DIR "${CMAKE_CURRENT_BINARY_DIR}/worker-bundle")
 set(WORKER_BUNDLE_STAMP "${WORKER_BUNDLE_DIR}/complete")
-file(GLOB_RECURSE WORKER_SOURCES CONFIGURE_DEPENDS "${WORKER_DIR}/src/*.py")
+file(GLOB_RECURSE WORKER_SOURCES CONFIGURE_DEPENDS "${WORKER_DIR}/src/*.py" "${WORKER_DIR}/scripts/*.py")
 find_program(UV_EXECUTABLE uv REQUIRED)
 if(UNIX AND NOT APPLE)
   find_program(WORKER_PYTHON NAMES python3.12 python3 PATHS /usr/bin NO_DEFAULT_PATH REQUIRED)
@@ -132,11 +132,7 @@ add_custom_command(
     "${CMAKE_COMMAND}" -E env --unset=CC --unset=CXX "${UV_EXECUTABLE}" run --locked --project "${WORKER_DIR}"
     ${UV_PYTHON_ARGS} --no-build-isolation-package fairseq --with "pyinstaller>=6.11,<7" python
     "${WORKER_DIR}/scripts/build_bundle.py" --output "${WORKER_BUNDLE_DIR}"
-  DEPENDS
-    "${WORKER_DIR}/pyproject.toml"
-    "${WORKER_DIR}/uv.lock"
-    "${WORKER_DIR}/scripts/build_bundle.py"
-    ${WORKER_SOURCES}
+  DEPENDS "${WORKER_DIR}/pyproject.toml" "${WORKER_DIR}/uv.lock" ${WORKER_SOURCES}
   COMMAND "${CMAKE_COMMAND}" -E touch "${WORKER_BUNDLE_STAMP}"
   WORKING_DIRECTORY "${WORKER_DIR}"
   COMMENT "Bundle OBS RVC Python worker"
