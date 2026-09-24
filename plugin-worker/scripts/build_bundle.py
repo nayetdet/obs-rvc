@@ -38,7 +38,6 @@ def main() -> None:
     ]
 
     command.extend(("--collect-data", "rvc", "--collect-data", "torchcrepe"))
-
     command.append(str(ROOT / "src" / "plugin_worker" / "__main__.py"))
     subprocess.run(command, check=True)
 
