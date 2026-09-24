@@ -129,8 +129,8 @@ endif()
 add_custom_command(
   OUTPUT "${WORKER_BUNDLE_STAMP}"
   COMMAND
-    "${UV_EXECUTABLE}" run --locked --project "${WORKER_DIR}" ${UV_PYTHON_ARGS} --with "pyinstaller>=6.11,<7" python
-    "${WORKER_DIR}/scripts/build_bundle.py" --output "${WORKER_BUNDLE_DIR}"
+    "${UV_EXECUTABLE}" run --locked --project "${WORKER_DIR}" ${UV_PYTHON_ARGS} --no-build-isolation-package fairseq
+    --with "pyinstaller>=6.11,<7" python "${WORKER_DIR}/scripts/build_bundle.py" --output "${WORKER_BUNDLE_DIR}"
   DEPENDS
     "${WORKER_DIR}/pyproject.toml"
     "${WORKER_DIR}/uv.lock"
