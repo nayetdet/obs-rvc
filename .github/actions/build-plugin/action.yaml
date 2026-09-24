@@ -71,6 +71,15 @@ runs:
       run: |
         : Install Dependencies 🛍️
         echo ::group::Install Dependencies
+        sudo apt-get update
+        sudo apt-get install --yes \
+          libavcodec-dev \
+          libavdevice-dev \
+          libavfilter-dev \
+          libavformat-dev \
+          libavutil-dev \
+          libswresample-dev \
+          libswscale-dev
         eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
         echo "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
         brew install --quiet zsh
