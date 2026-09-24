@@ -29,6 +29,9 @@ rvc = { git = "https://github.com/nayetdet/Retrieval-based-Voice-Conversion" }
 torch = { index = "pytorch-cpu" }
 torchaudio = { index = "pytorch-cpu" }
 
+[tool.uv]
+override-dependencies = ["av==15.1.0"]
+
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
