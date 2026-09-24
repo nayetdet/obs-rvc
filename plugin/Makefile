@@ -1,5 +1,8 @@
 BUILD_CONFIG := RelWithDebInfo
 RELEASE_DIR  := release/$(BUILD_CONFIG)
+# Ubuntu's OBS package discovers plugins under /usr, not /usr/local.
+# Override this when using an OBS installation in a different prefix.
+OBS_INSTALL_PREFIX ?= /usr
 
 ifeq ($(OS),Windows_NT)
   BUILD_PRESET := windows-x64
@@ -24,7 +27,10 @@ build:
 ifeq ($(OS),Windows_NT)
 install: build
 	cmake --install $(BUILD_DIR) --config $(BUILD_CONFIG)
-else
+else ifeq ($(shell uname -s),Darwin)
 install: build
 	sudo cmake --install $(BUILD_DIR) --config $(BUILD_CONFIG)
+else
+install: build
+	sudo cmake --install $(BUILD_DIR) --config $(BUILD_CONFIG) --prefix $(OBS_INSTALL_PREFIX)
 endif
