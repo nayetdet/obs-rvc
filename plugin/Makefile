@@ -21,5 +21,15 @@ build:
 		--config $(BUILD_CONFIG) \
 		--prefix $(RELEASE_DIR)
 
+ifeq ($(OS),Windows_NT)
 install: build
 	cmake --install $(BUILD_DIR) --config $(BUILD_CONFIG)
+else
+install:
+	@if [ "$$(id -u)" -eq 0 ]; then \
+		echo "Run 'make install' without sudo; sudo is used only for installation."; \
+		exit 1; \
+	fi
+	$(MAKE) build
+	sudo cmake --install $(BUILD_DIR) --config $(BUILD_CONFIG)
+endif
