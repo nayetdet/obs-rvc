@@ -116,30 +116,30 @@ set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
 
-set(RVC_WORKER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../plugin-worker")
-if(EXISTS "${RVC_WORKER_SOURCE_DIR}/pyproject.toml")
-  if(WIN32)
-    set(RVC_WORKER_INSTALL_DIR "${CMAKE_PROJECT_NAME}/data/worker")
-  else()
-    set(RVC_WORKER_INSTALL_DIR "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/worker")
-  endif()
-  install(
-    DIRECTORY "${RVC_WORKER_SOURCE_DIR}/"
-    DESTINATION "${RVC_WORKER_INSTALL_DIR}"
-    USE_SOURCE_PERMISSIONS
-    PATTERN ".git" EXCLUDE
-    PATTERN ".venv" EXCLUDE
-    PATTERN "__pycache__" EXCLUDE
-  )
-  add_custom_command(
-    TARGET ${CMAKE_PROJECT_NAME}
-    POST_BUILD
-    COMMAND
-      "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
-    COMMAND
-      "${CMAKE_COMMAND}" -E copy_directory "${RVC_WORKER_SOURCE_DIR}"
-      "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
-    COMMENT "Copy OBS RVC Python worker"
-    VERBATIM
-  )
+set(WORKER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../plugin-worker")
+if(WIN32)
+  set(WORKER_DEST "${CMAKE_PROJECT_NAME}/data/worker")
+else()
+  set(WORKER_DEST "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/worker")
 endif()
+
+install(
+  DIRECTORY "${WORKER_DIR}/"
+  DESTINATION "${WORKER_DEST}"
+  USE_SOURCE_PERMISSIONS
+  PATTERN ".git" EXCLUDE
+  PATTERN ".venv" EXCLUDE
+  PATTERN "__pycache__" EXCLUDE
+)
+
+add_custom_command(
+  TARGET ${CMAKE_PROJECT_NAME}
+  POST_BUILD
+  COMMAND
+    "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
+  COMMAND
+    "${CMAKE_COMMAND}" -E copy_directory "${WORKER_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
+  COMMENT "Copy OBS RVC Python worker"
+  VERBATIM
+)
