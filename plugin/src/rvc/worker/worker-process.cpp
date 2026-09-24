@@ -38,7 +38,7 @@ bool launch(rvc_worker_process_t &worker, const std::vector<std::string> &args, 
 	STARTUPINFOA startup{};
 	startup.cb = sizeof(startup);
 	return CreateProcessA(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
-					 directory.string().c_str(), &startup, &worker.process) != FALSE;
+			      directory.string().c_str(), &startup, &worker.process) != FALSE;
 }
 #else
 bool launch(rvc_worker_process_t &worker, const std::vector<std::string> &args, const fs::path &directory)
@@ -74,16 +74,16 @@ bool rvc_worker_start(rvc_worker_process_t **process)
 		HMODULE module = nullptr;
 		GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
 					   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-					   reinterpret_cast<LPCSTR>(&rvc_worker_start), &module);
+				   reinterpret_cast<LPCSTR>(&rvc_worker_start), &module);
 		char filename[MAX_PATH]{};
 		const DWORD length = GetModuleFileNameA(module, filename, MAX_PATH);
 		directory = fs::path(std::string(filename, length)).parent_path() / ".." / ".." / "data" / "worker";
 #else
 		Dl_info info{};
-		directory = dladdr(reinterpret_cast<void *>(&rvc_worker_start), &info) != 0 ?
-				     fs::path(info.dli_fname).parent_path() / ".." / ".." / "share" / "obs" /
-					     "obs-plugins" / "obs-rvc" / "worker" :
-				     fs::current_path() / "plugin-worker";
+		directory = dladdr(reinterpret_cast<void *>(&rvc_worker_start), &info) != 0
+				    ? fs::path(info.dli_fname).parent_path() / ".." / ".." / "share" / "obs" /
+					      "obs-plugins" / "obs-rvc" / "worker"
+				    : fs::current_path() / "plugin-worker";
 #endif
 	}
 
@@ -95,10 +95,12 @@ bool rvc_worker_start(rvc_worker_process_t **process)
 	*process = new rvc_worker_process{};
 	const char *executable = std::getenv("RVC_WORKER_EXECUTABLE");
 	const char *python = std::getenv("RVC_WORKER_PYTHON");
-	const std::vector<std::string> args = executable != nullptr ?
-										std::vector<std::string>{executable} :
-										std::vector<std::string>{python != nullptr ? python : "python3", "-c",
-													 "import sys; sys.path.insert(0, 'src'); from plugin_worker.main import main; main()"};
+	const std::vector<std::string> args =
+		executable != nullptr
+			? std::vector<std::string>{executable}
+			: std::vector<std::string>{
+				  python != nullptr ? python : "python3", "-c",
+				  "import sys; sys.path.insert(0, 'src'); from plugin_worker.main import main; main()"};
 
 	if (!launch(**process, args, directory)) {
 		delete *process;

@@ -116,9 +116,6 @@ set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
 
-# Ship the Python package next to the plugin.  `uv run` creates/uses its
-# source layout works on Linux, Windows, and NixOS without relying on OBS's
-# current working directory.
 set(RVC_WORKER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../plugin-worker")
 if(EXISTS "${RVC_WORKER_SOURCE_DIR}/pyproject.toml")
   if(WIN32)
@@ -137,10 +134,10 @@ if(EXISTS "${RVC_WORKER_SOURCE_DIR}/pyproject.toml")
   add_custom_command(
     TARGET ${CMAKE_PROJECT_NAME}
     POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E make_directory
-      "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory
-      "${RVC_WORKER_SOURCE_DIR}"
+    COMMAND
+      "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy_directory "${RVC_WORKER_SOURCE_DIR}"
       "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/worker"
     COMMENT "Copy OBS RVC Python worker"
     VERBATIM
