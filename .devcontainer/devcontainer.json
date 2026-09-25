@@ -1,11 +1,6 @@
 {
   "name": "obs-rvc",
   "image": "ghcr.io/nayetdet/obs-rvc:devcontainer",
-  "features": {
-    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-      "packages": "git-lfs"
-    }
-  },
   "remoteUser": "vscode",
   "initializeCommand": "bash .devcontainer/scripts/init.sh",
   "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
