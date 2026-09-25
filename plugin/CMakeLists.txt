@@ -62,6 +62,7 @@ if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
 endif()
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
@@ -107,9 +108,10 @@ target_sources(
     src/plugin-main.c
     src/rvc/ipc/rvc-ipc.cpp
     src/rvc/filter/rvc-filter.cpp
+    src/rvc/filter/rvc-filter-validation.cpp
     src/rvc/ipc/settings/rvc-settings-client.cpp
     src/rvc/ipc/audio/rvc-audio-client.cpp
-    src/rvc/worker/worker-process.cpp
+    src/rvc/worker/rvc-worker-process.cpp
 )
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY C_STANDARD 11)
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)

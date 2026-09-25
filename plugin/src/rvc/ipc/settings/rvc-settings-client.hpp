@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rvc-settings-transport.h"
-#include "../base/base-client.hpp"
+#include "rvc/ipc/base/base-client.hpp"
 
 #include <memory>
 

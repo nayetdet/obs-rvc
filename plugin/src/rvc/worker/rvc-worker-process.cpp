@@ -1,4 +1,4 @@
-#include "worker-process.h"
+#include "rvc-worker-process.h"
 
 #include <obs-module.h>
 #include <plugin-support.h>

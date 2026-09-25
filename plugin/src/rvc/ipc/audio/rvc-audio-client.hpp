@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rvc-audio-transport.h"
-#include "../base/base-client.hpp"
+#include "rvc/ipc/base/base-client.hpp"
 
 #include <memory>
 
