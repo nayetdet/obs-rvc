@@ -57,7 +57,6 @@ inline bool encode_wav(const obs_audio_data *audio, uint32_t sample_rate, uint16
 	std::memcpy(wav.data() + 36U, "data", 4U);
 	write_le(wav, 40U, static_cast<uint32_t>(data_size));
 
-	auto *samples = wav.data() + 44U;
 	for (uint32_t frame = 0U; frame < audio->frames; ++frame) {
 		for (uint16_t channel = 0U; channel < channels; ++channel) {
 			const auto *input = reinterpret_cast<const float *>(audio->data[channel]);
@@ -67,6 +66,7 @@ inline bool encode_wav(const obs_audio_data *audio, uint32_t sample_rate, uint16
 			write_le(wav, 44U + offset, static_cast<uint16_t>(sample));
 		}
 	}
+
 	return true;
 }
 
@@ -83,6 +83,7 @@ inline bool decode_wav(const uint8_t *data, uint32_t size, uint32_t &sample_rate
 	const uint32_t riff_size = read_le<uint32_t>(data + 4U);
 	if (riff_size < 4U || riff_size > size - 8U)
 		return false;
+
 	const uint32_t riff_end = riff_size + 8U;
 	uint16_t format = 0U;
 	uint16_t bits_per_sample = 0U;
