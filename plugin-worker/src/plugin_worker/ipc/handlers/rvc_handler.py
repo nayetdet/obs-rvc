@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from pydantic import ValidationError
 
 from ...core.rvc_inference import RVCInference
@@ -14,6 +16,8 @@ from ...utils.text_utils import TextUtils
 from ..publishers.audio_publisher import AudioPublisher
 from ..subscribers.audio_subscriber import AudioSubscriber
 
+logger = logging.getLogger(__name__)
+
 
 class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
     def __init__(self, rvc: RVCInference) -> None:
@@ -26,6 +30,7 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
         )
 
         self.rvc = rvc
+        self.last_unexpected_error: str | None = None
 
     def handle(self, request: AudioRequestSchema) -> AudioResponseSchema:
         if request.audio_size == 0 or request.audio_size > Settings.max_audio_bytes:
@@ -53,8 +58,15 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
 
             if len(output) > Settings.max_output_bytes:
                 return AudioMapper.from_error_message("Converted audio exceeds the IPC buffer.")
+            self.last_unexpected_error = None
             return AudioMapper.from_audio(output, sample_rate)
         except ValidationError:
             return AudioMapper.from_error_message("Inference options are invalid.")
         except RVCInferenceError as exc:
             return AudioMapper.from_error_message(str(exc))
+        except Exception as exc:
+            message = f"{type(exc).__name__}: {exc}"
+            if message != self.last_unexpected_error:
+                logger.exception("Unexpected error while converting audio")
+                self.last_unexpected_error = message
+            return AudioMapper.from_error_message(f"RVC conversion failed: {exc}")

@@ -27,6 +27,8 @@ def main() -> None:
         str(ROOT / "src"),
         "--additional-hooks-dir",
         str(ROOT / "scripts" / "pyinstaller-hooks"),
+        "--runtime-hook",
+        str(ROOT / "scripts" / "pyinstaller-hooks" / "fairseq-hook.py"),
         "--distpath",
         str(args.output.resolve()),
         "--workpath",
@@ -35,9 +37,11 @@ def main() -> None:
         str(args.output.resolve() / ".spec"),
         "--recursive-copy-metadata",
         "rvc",
+        "--copy-metadata",
+        "pyworld",
     ]
 
-    command.extend(("--collect-data", "rvc", "--collect-data", "torchcrepe"))
+    command.extend(("--collect-all", "fairseq", "--collect-data", "rvc", "--collect-data", "torchcrepe"))
     command.append(str(ROOT / "src" / "plugin_worker" / "__main__.py"))
     subprocess.run(command, check=True)
 

@@ -1,4 +1,4 @@
-.PHONY: run
+.PHONY: install upgrade run
 
 install:
 	uv sync

@@ -1,11 +1,13 @@
-.PHONY: build install install-hooks
+.PHONY: build clean install install-hooks
 
 build:
 	$(MAKE) -C plugin build
 
 install:
 	$(MAKE) -C plugin install
-	$(MAKE) -C plugin-worker install
+
+clean:
+	$(MAKE) -C plugin clean
 
 install-hooks:
 	git config core.hooksPath .githooks

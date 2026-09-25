@@ -5,6 +5,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, ge
 
 datas = collect_data_files(
     "torch",
+    include_py_files=True,
     excludes=[
         "**/*.h",
         "**/*.hpp",

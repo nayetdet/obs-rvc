@@ -15,12 +15,14 @@ from ..exceptions.rvc_inference_model_not_found import RVCInferenceModelNotFound
 from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
 from ..runtime import runtime
 from ..utils.audio_utils import AudioUtils
+from ..utils.compatibility_utils import CompatibilityUtils
 
 logger = logging.getLogger(__name__)
 
 
 class RVCInference:
     models: dict[str, Any] = {}
+    model_errors: dict[str, str] = {}
     model_locks: dict[str, threading.Lock] = {}
     lock: threading.Lock = threading.Lock()
     vc_class: Any = None
@@ -59,12 +61,19 @@ class RVCInference:
                     hubert_path=str(runtime.hubert_path.expanduser().resolve()),
                     rmvpe_root=str(rmvpe_path.parent),
                     weight_root=str(model_path.parent),
+                    index_root=str(model_path.parent),
                 )
 
-                from rvc.modules.vc.modules import VC
-                self.vc_class = VC
+                CompatibilityUtils.configure_torch()
+                from rvc.modules.vc import modules as vc_modules
+
+                vc_modules.load_audio = AudioUtils.load_audio
+                self.vc_class = vc_modules.VC
 
             key: str = str(model_path)
+            if key in self.model_errors:
+                raise RVCInferenceError(self.model_errors[key])
+
             if key not in self.models:
                 logger.info("Loading RVC model: %s", model_path)
                 try:
@@ -72,7 +81,9 @@ class RVCInference:
                     vc.get_vc(key)
                 except Exception as exc:
                     logger.exception("Unable to load RVC model: %s", model_path)
-                    raise RVCInferenceError(f"Unable to load RVC model '{model_path.name}'.") from exc
+                    message = f"Unable to load RVC model '{model_path.name}'."
+                    self.model_errors[key] = message
+                    raise RVCInferenceError(message) from exc
                 self.models[key] = vc
 
             model_lock: threading.Lock = self.model_locks.setdefault(key, threading.Lock())
@@ -85,14 +96,14 @@ class RVCInference:
                 error: Any
                 target_sr, output, _, error = vc.vc_inference(
                     options.speaker,
-                    input_path,
+                    str(input_path),
                     options.f0_up_key,
                     options.f0_method,
                     filter_radius=options.filter_radius,
                     resample_sr=options.resample_sr,
                     rms_mix_rate=options.rms_mix_rate,
                     protect=options.protect,
-                    hubert_path=runtime.hubert_path,
+                    hubert_path=str(runtime.hubert_path.expanduser().resolve()),
                 )
 
                 if error or output is None or target_sr is None:
@@ -105,5 +116,6 @@ class RVCInference:
     def reset(self) -> None:
         with self.lock:
             self.models.clear()
+            self.model_errors.clear()
             self.model_locks.clear()
             self.vc_class = None

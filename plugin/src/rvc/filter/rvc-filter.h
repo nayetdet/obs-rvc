@@ -18,6 +18,7 @@ struct RvcFilterData {
 	float rms_mix_rate = 0.25F;
 	float protect = 0.33F;
 	bool configured = false;
+	bool bypass_conversion = false;
 	bool conversion_error_logged = false;
 };
 

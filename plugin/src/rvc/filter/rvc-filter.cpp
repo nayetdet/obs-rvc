@@ -26,12 +26,13 @@ constexpr char kFilterRadius[] = "filter_radius";
 constexpr char kResampleSr[] = "resample_sr";
 constexpr char kRmsMixRate[] = "rms_mix_rate";
 constexpr char kProtect[] = "protect";
+constexpr uint32_t kRealtimeConversionTimeoutMs = 5U;
 
 rvc_ipc_t *g_ipc = nullptr;
 
 const char *rvc_filter_name(void *)
 {
-	return "RVC Audio Filter";
+	return "RVC";
 }
 
 void rvc_filter_defaults(obs_data_t *settings)
@@ -107,7 +108,7 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 		return;
 	}
 
-	const enum rvc_ipc_status status = rvc_ipc_configure(g_ipc, &request, &response, 1000U);
+	const enum rvc_ipc_status status = rvc_ipc_configure(g_ipc, &request, &response, 10000U);
 	if (status != RVC_IPC_STATUS_OK) {
 		obs_log(LOG_ERROR, "Unable to configure RVC worker: status=%d", status);
 		data->configured = false;
@@ -123,6 +124,7 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	data->rms_mix_rate = static_cast<float>(obs_data_get_double(settings, kRmsMixRate));
 	data->protect = static_cast<float>(obs_data_get_double(settings, kProtect));
 	data->configured = true;
+	data->bypass_conversion = false;
 	data->conversion_error_logged = false;
 }
 
@@ -146,7 +148,7 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 		return audio;
 
 	std::lock_guard<std::mutex> lock(data->mutex);
-	if (!data->configured)
+	if (!data->configured || data->bypass_conversion)
 		return audio;
 
 	obs_audio_info audio_info{};
@@ -169,20 +171,23 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 	request->speaker = data->speaker;
 	request->f0_up_key = data->f0_up_key;
 	request->filter_radius = data->filter_radius;
-	request->resample_sr = data->resample_sr;
+	request->resample_sr = data->resample_sr > 0 ? data->resample_sr : static_cast<int32_t>(audio_info.samples_per_sec);
 	request->rms_mix_rate = data->rms_mix_rate;
 	request->protect = data->protect;
 	std::memcpy(request->audio, input_wav.data(), input_wav.size());
 
-	const enum rvc_ipc_status status = rvc_ipc_convert(g_ipc, request.get(), response.get(), 1000U);
+	const enum rvc_ipc_status status = rvc_ipc_convert(g_ipc, request.get(), response.get(), kRealtimeConversionTimeoutMs);
 	if (status != RVC_IPC_STATUS_OK || response->audio_size == 0U) {
 		if (!data->conversion_error_logged) {
 			const size_t error_size = std::min<size_t>(response->error_size, sizeof(response->error));
-			const std::string error = error_size > 0U ? std::string(response->error, error_size)
-								  : "RVC conversion failed.";
+			const std::string error =
+				status == RVC_IPC_STATUS_TIMEOUT ? "RVC conversion exceeded the real-time audio deadline; passing through audio."
+				: error_size > 0U		      ? std::string(response->error, error_size)
+								      : "RVC conversion failed; passing through audio.";
 			obs_log(LOG_ERROR, "%s", error.c_str());
 			data->conversion_error_logged = true;
 		}
+		data->bypass_conversion = true;
 		return audio;
 	}
 

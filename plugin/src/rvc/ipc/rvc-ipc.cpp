@@ -17,8 +17,6 @@ static enum rvc_ipc_status to_ipc_status(core::BaseTransportStatus status)
 		return RVC_IPC_STATUS_OK;
 	case core::BaseTransportStatus::RemoteError:
 		return RVC_IPC_STATUS_WORKER_ERROR;
-	case core::BaseTransportStatus::InvalidArgument:
-		return RVC_IPC_STATUS_INVALID_ARGUMENT;
 	case core::BaseTransportStatus::TransportError:
 		return RVC_IPC_STATUS_TRANSPORT_ERROR;
 	case core::BaseTransportStatus::Timeout:
