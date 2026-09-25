@@ -67,17 +67,18 @@ class RVCInference:
             key: str = str(model_path)
             if key not in self.models:
                 logger.info("Loading RVC model: %s", model_path)
-                self.models[key] = self.vc_class()
-                self.models[key].get_vc(key)
+                try:
+                    vc: Any = self.vc_class()
+                    vc.get_vc(key)
+                except Exception as exc:
+                    logger.exception("Unable to load RVC model: %s", model_path)
+                    raise RVCInferenceError(f"Unable to load RVC model '{model_path.name}'.") from exc
+                self.models[key] = vc
 
             model_lock: threading.Lock = self.model_locks.setdefault(key, threading.Lock())
 
         with model_lock:
             with AudioUtils.input_file(audio, input_format) as input_path:
-                index_path: Path | None = (
-                    Path(options.index_file).expanduser().resolve() if options.index_file else None
-                )
-
                 vc: Any = self.models[key]
                 target_sr: int | None
                 output: Any
@@ -87,8 +88,6 @@ class RVCInference:
                     input_path,
                     options.f0_up_key,
                     options.f0_method,
-                    index_file=str(index_path) if index_path and index_path.is_file() else None,
-                    index_rate=options.index_rate,
                     filter_radius=options.filter_radius,
                     resample_sr=options.resample_sr,
                     rms_mix_rate=options.rms_mix_rate,

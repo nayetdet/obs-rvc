@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -19,11 +20,10 @@ namespace {
 constexpr char kModel[] = "model";
 constexpr char kHubertPath[] = "hubert_path";
 constexpr char kRmvpePath[] = "rmvpe_path";
+constexpr char kModelStatus[] = "model_status";
 constexpr char kSpeaker[] = "speaker";
 constexpr char kF0UpKey[] = "f0_up_key";
 constexpr char kF0Method[] = "f0_method";
-constexpr char kIndexFile[] = "index_file";
-constexpr char kIndexRate[] = "index_rate";
 constexpr char kFilterRadius[] = "filter_radius";
 constexpr char kResampleSr[] = "resample_sr";
 constexpr char kRmsMixRate[] = "rms_mix_rate";
@@ -34,17 +34,72 @@ rvc_ipc_t *g_ipc = nullptr;
 struct RvcFilterData {
 	std::mutex mutex;
 	std::string model;
-	std::string index_file;
 	std::string f0_method;
 	int32_t speaker = 0;
 	int32_t f0_up_key = 0;
-	float index_rate = 0.75F;
 	int32_t filter_radius = 3;
 	int32_t resample_sr = 0;
 	float rms_mix_rate = 0.25F;
 	float protect = 0.33F;
 	bool configured = false;
+	bool conversion_error_logged = false;
 };
+
+namespace fs = std::filesystem;
+
+void set_default_model_path(obs_data_t *settings, const char *key, const char *relative_path)
+{
+	char *path = obs_module_file(relative_path);
+	if (path == nullptr)
+		return;
+
+	obs_data_set_default_string(settings, key, path);
+	bfree(path);
+}
+
+bool is_regular_file(const char *path)
+{
+	if (path == nullptr || path[0] == '\0')
+		return false;
+
+	std::error_code error;
+	try {
+		return fs::is_regular_file(fs::u8path(path), error) && !error;
+	} catch (const fs::filesystem_error &) {
+		return false;
+	}
+}
+
+struct ModelValidation {
+	bool valid;
+	std::string message;
+};
+
+ModelValidation validate_models(obs_data_t *settings)
+{
+	const char *model = obs_data_get_string(settings, kModel);
+	const char *hubert = obs_data_get_string(settings, kHubertPath);
+	const char *rmvpe = obs_data_get_string(settings, kRmvpePath);
+	if (!is_regular_file(model) || fs::u8path(model).extension() != ".pth")
+		return {false, "Choose an existing RVC model file (.pth)."};
+	if (!is_regular_file(hubert) || fs::u8path(hubert).extension() != ".pt")
+		return {false, "Choose an existing HuBERT model file (.pt)."};
+	if (!is_regular_file(rmvpe) || fs::u8path(rmvpe).filename() != "rmvpe.pt")
+		return {false, "Choose the RMVPE model file named rmvpe.pt."};
+	return {true, "All model files are valid."};
+}
+
+bool model_path_modified(obs_properties_t *properties, obs_property_t *, obs_data_t *settings)
+{
+	const ModelValidation validation = validate_models(settings);
+	obs_property_t *status = obs_properties_get(properties, kModelStatus);
+	if (status == nullptr)
+		return false;
+
+	obs_property_set_description(status, validation.message.c_str());
+	obs_property_text_set_info_type(status, validation.valid ? OBS_TEXT_INFO_NORMAL : OBS_TEXT_INFO_ERROR);
+	return true;
+}
 
 template<size_t Size> void copy_string(char (&destination)[Size], const char *source)
 {
@@ -172,10 +227,12 @@ const char *rvc_filter_name(void *)
 
 void rvc_filter_defaults(obs_data_t *settings)
 {
+	set_default_model_path(settings, kModel, "models/rvc/miku_default_rvc.pth");
+	set_default_model_path(settings, kHubertPath, "models/hubert/hubert_base.pt");
+	set_default_model_path(settings, kRmvpePath, "models/rmvpe/rmvpe.pt");
 	obs_data_set_default_string(settings, kF0Method, "rmvpe");
 	obs_data_set_default_int(settings, kSpeaker, 0);
 	obs_data_set_default_int(settings, kF0UpKey, 0);
-	obs_data_set_default_double(settings, kIndexRate, 0.75);
 	obs_data_set_default_int(settings, kFilterRadius, 3);
 	obs_data_set_default_int(settings, kResampleSr, 0);
 	obs_data_set_default_double(settings, kRmsMixRate, 0.25);
@@ -188,6 +245,12 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_path(properties, kModel, "Model", OBS_PATH_FILE, "RVC model (*.pth)", nullptr);
 	obs_properties_add_path(properties, kHubertPath, "HuBERT model", OBS_PATH_FILE, "HuBERT model (*.pt)", nullptr);
 	obs_properties_add_path(properties, kRmvpePath, "RMVPE model", OBS_PATH_FILE, "RMVPE model (*.pt)", nullptr);
+	obs_property_t *status =
+		obs_properties_add_text(properties, kModelStatus, "All model files are valid.", OBS_TEXT_INFO);
+	obs_property_text_set_info_type(status, OBS_TEXT_INFO_NORMAL);
+	obs_property_set_modified_callback(obs_properties_get(properties, kModel), model_path_modified);
+	obs_property_set_modified_callback(obs_properties_get(properties, kHubertPath), model_path_modified);
+	obs_property_set_modified_callback(obs_properties_get(properties, kRmvpePath), model_path_modified);
 
 	obs_property_t *f0_method = obs_properties_add_list(properties, kF0Method, "F0 method", OBS_COMBO_TYPE_LIST,
 							    OBS_COMBO_FORMAT_STRING);
@@ -196,10 +259,8 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_property_list_add_string(f0_method, "Crepe", "crepe");
 	obs_property_list_add_string(f0_method, "PM", "pm");
 
-	obs_properties_add_path(properties, kIndexFile, "Index file", OBS_PATH_FILE, "RVC index (*.index)", nullptr);
 	obs_properties_add_int(properties, kSpeaker, "Speaker", 0, 32, 1);
 	obs_properties_add_int(properties, kF0UpKey, "F0 transpose", -24, 24, 1);
-	obs_properties_add_float_slider(properties, kIndexRate, "Index rate", 0.0, 1.0, 0.01);
 	obs_properties_add_int(properties, kFilterRadius, "Filter radius", 0, 7, 1);
 	obs_properties_add_int(properties, kResampleSr, "Resample rate", 0, 192000, 1000);
 	obs_properties_add_float_slider(properties, kRmsMixRate, "RMS mix rate", 0.0, 1.0, 0.01);
@@ -217,8 +278,13 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	rvc_settings_request_t request{};
 	rvc_settings_response_t response{};
 	const char *model = obs_data_get_string(settings, kModel);
-	const char *index_file = obs_data_get_string(settings, kIndexFile);
 	const char *f0_method = obs_data_get_string(settings, kF0Method);
+	const ModelValidation validation = validate_models(settings);
+	if (!validation.valid) {
+		data->configured = false;
+		obs_log(LOG_ERROR, "Unable to configure RVC filter: %s", validation.message.c_str());
+		return;
+	}
 	copy_string(request.model, model);
 	copy_string(request.hubert_path, obs_data_get_string(settings, kHubertPath));
 	copy_string(request.rmvpe_path, obs_data_get_string(settings, kRmvpePath));
@@ -231,16 +297,15 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	}
 
 	data->model = model != nullptr ? model : "";
-	data->index_file = index_file != nullptr ? index_file : "";
 	data->f0_method = f0_method != nullptr ? f0_method : "rmvpe";
 	data->speaker = static_cast<int32_t>(obs_data_get_int(settings, kSpeaker));
 	data->f0_up_key = static_cast<int32_t>(obs_data_get_int(settings, kF0UpKey));
-	data->index_rate = static_cast<float>(obs_data_get_double(settings, kIndexRate));
 	data->filter_radius = static_cast<int32_t>(obs_data_get_int(settings, kFilterRadius));
 	data->resample_sr = static_cast<int32_t>(obs_data_get_int(settings, kResampleSr));
 	data->rms_mix_rate = static_cast<float>(obs_data_get_double(settings, kRmsMixRate));
 	data->protect = static_cast<float>(obs_data_get_double(settings, kProtect));
 	data->configured = true;
+	data->conversion_error_logged = false;
 }
 
 void *rvc_filter_create(obs_data_t *settings, obs_source_t *)
@@ -281,10 +346,8 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 	copy_string(request->model, data->model.c_str());
 	copy_string(request->input_format, "wav");
 	copy_string(request->f0_method, data->f0_method.c_str());
-	copy_string(request->index_file, data->index_file.c_str());
 	request->speaker = data->speaker;
 	request->f0_up_key = data->f0_up_key;
-	request->index_rate = data->index_rate;
 	request->filter_radius = data->filter_radius;
 	request->resample_sr = data->resample_sr;
 	request->rms_mix_rate = data->rms_mix_rate;
@@ -292,8 +355,17 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 	std::memcpy(request->audio, input_wav.data(), input_wav.size());
 
 	const enum rvc_ipc_status status = rvc_ipc_convert(g_ipc, request.get(), response.get(), 1000U);
-	if (status != RVC_IPC_STATUS_OK || response->audio_size == 0U)
+	if (status != RVC_IPC_STATUS_OK || response->audio_size == 0U) {
+		if (!data->conversion_error_logged) {
+			const size_t error_size = std::min<size_t>(response->error_size, sizeof(response->error));
+			const std::string error = error_size > 0U ? std::string(response->error, error_size)
+								  : "RVC conversion failed.";
+			obs_log(LOG_ERROR, "%s", error.c_str());
+			data->conversion_error_logged = true;
+		}
 		return audio;
+	}
+	data->conversion_error_logged = false;
 
 	uint32_t output_sample_rate = 0U;
 	uint16_t output_channels = 0U;

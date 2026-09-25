@@ -14,8 +14,6 @@ class AudioRequestSchema(BaseRequestSchema):
         ("speaker", ctypes.c_int32),
         ("f0_up_key", ctypes.c_int32),
         ("f0_method", ctypes.c_char * 8),
-        ("index_file", ctypes.c_char * Settings.max_index_path_bytes),
-        ("index_rate", ctypes.c_float),
         ("filter_radius", ctypes.c_int32),
         ("resample_sr", ctypes.c_int32),
         ("rms_mix_rate", ctypes.c_float),

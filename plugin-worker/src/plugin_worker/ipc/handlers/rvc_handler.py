@@ -36,8 +36,6 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
                 speaker=request.speaker,
                 f0_up_key=request.f0_up_key,
                 f0_method=TextUtils.decode(request.f0_method),
-                index_file=TextUtils.decode(request.index_file) or None,
-                index_rate=request.index_rate,
                 filter_radius=request.filter_radius,
                 resample_sr=request.resample_sr,
                 rms_mix_rate=request.rms_mix_rate,
