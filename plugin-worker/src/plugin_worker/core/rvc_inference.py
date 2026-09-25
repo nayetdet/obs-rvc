@@ -35,19 +35,15 @@ class RVCInference:
         if not audio:
             raise RVCInferenceError()
 
-        if runtime.model_dir is None or runtime.hubert_path is None or runtime.rmvpe_root is None:
+        if runtime.hubert_path is None or runtime.rmvpe_root is None:
             raise RVCInferenceError()
 
-        model_dir: Path = runtime.model_dir.expanduser().resolve()
         if not model and not runtime.model:
             raise RVCInferenceModelNotFoundError()
 
         model_path: Path = Path(model or runtime.model or "")
-        model_path = model_path.resolve() if model_path.is_absolute() else (model_dir / model_path).resolve()
-        try:
-            model_path.relative_to(model_dir)
-        except ValueError as exc:
-            raise RVCInferenceModelNotFoundError() from exc
+        model_path = model_path.expanduser().resolve()
+        model_dir: Path = model_path.parent
 
         if model_path.suffix.lower() != ".pth" or not model_path.is_file():
             raise RVCInferenceModelNotFoundError()

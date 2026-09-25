@@ -17,7 +17,6 @@
 
 namespace {
 constexpr char kModel[] = "model";
-constexpr char kModelDirectory[] = "model_dir";
 constexpr char kHubertPath[] = "hubert_path";
 constexpr char kRmvpeRoot[] = "rmvpe_root";
 constexpr char kSpeaker[] = "speaker";
@@ -39,10 +38,10 @@ struct RvcFilterData {
 	std::string f0_method;
 	int32_t speaker = 0;
 	int32_t f0_up_key = 0;
-	float index_rate = 0.0F;
+	float index_rate = 0.75F;
 	int32_t filter_radius = 3;
 	int32_t resample_sr = 0;
-	float rms_mix_rate = 1.0F;
+	float rms_mix_rate = 0.25F;
 	float protect = 0.33F;
 	bool configured = false;
 };
@@ -176,10 +175,10 @@ void rvc_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, kF0Method, "rmvpe");
 	obs_data_set_default_int(settings, kSpeaker, 0);
 	obs_data_set_default_int(settings, kF0UpKey, 0);
-	obs_data_set_default_double(settings, kIndexRate, 0.0);
+	obs_data_set_default_double(settings, kIndexRate, 0.75);
 	obs_data_set_default_int(settings, kFilterRadius, 3);
 	obs_data_set_default_int(settings, kResampleSr, 0);
-	obs_data_set_default_double(settings, kRmsMixRate, 1.0);
+	obs_data_set_default_double(settings, kRmsMixRate, 0.25);
 	obs_data_set_default_double(settings, kProtect, 0.33);
 }
 
@@ -187,7 +186,6 @@ obs_properties_t *rvc_filter_properties(void *)
 {
 	obs_properties_t *properties = obs_properties_create();
 	obs_properties_add_path(properties, kModel, "Model", OBS_PATH_FILE, "RVC model (*.pth)", nullptr);
-	obs_properties_add_path(properties, kModelDirectory, "Model directory", OBS_PATH_DIRECTORY, nullptr, nullptr);
 	obs_properties_add_path(properties, kHubertPath, "HuBERT model", OBS_PATH_FILE, "HuBERT model (*.pt)", nullptr);
 	obs_properties_add_path(properties, kRmvpeRoot, "RMVPE directory", OBS_PATH_DIRECTORY, nullptr, nullptr);
 
@@ -222,7 +220,6 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	const char *index_file = obs_data_get_string(settings, kIndexFile);
 	const char *f0_method = obs_data_get_string(settings, kF0Method);
 	copy_string(request.model, model);
-	copy_string(request.model_dir, obs_data_get_string(settings, kModelDirectory));
 	copy_string(request.hubert_path, obs_data_get_string(settings, kHubertPath));
 	copy_string(request.rmvpe_root, obs_data_get_string(settings, kRmvpeRoot));
 
