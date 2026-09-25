@@ -108,6 +108,7 @@ target_sources(
     src/plugin-main.c
     src/rvc/ipc/rvc-ipc.cpp
     src/rvc/filter/rvc-filter.cpp
+    src/rvc/filter/rvc-filter-conversion.cpp
     src/rvc/filter/rvc-filter-validation.cpp
     src/rvc/ipc/settings/rvc-settings-client.cpp
     src/rvc/ipc/audio/rvc-audio-client.cpp

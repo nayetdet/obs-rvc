@@ -4,8 +4,13 @@
 
 #ifdef __cplusplus
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
+
+namespace rvc::filter {
+class ConversionWorker;
+}
 
 struct RvcFilterData {
 	std::mutex mutex;
@@ -17,9 +22,9 @@ struct RvcFilterData {
 	int32_t resample_sr = 0;
 	float rms_mix_rate = 0.25F;
 	float protect = 0.33F;
+	int32_t chunk_duration_ms = 8000;
 	bool configured = false;
-	bool bypass_conversion = false;
-	bool conversion_error_logged = false;
+	std::unique_ptr<rvc::filter::ConversionWorker> conversion_worker;
 };
 
 extern "C" {

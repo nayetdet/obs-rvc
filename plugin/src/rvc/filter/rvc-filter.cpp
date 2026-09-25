@@ -1,4 +1,5 @@
 #include "rvc-filter.h"
+#include "rvc-filter-conversion.hpp"
 #include "rvc-filter-validation.hpp"
 #include "utils/file-utils.hpp"
 #include "utils/string-utils.hpp"
@@ -26,8 +27,9 @@ constexpr char kFilterRadius[] = "filter_radius";
 constexpr char kResampleSr[] = "resample_sr";
 constexpr char kRmsMixRate[] = "rms_mix_rate";
 constexpr char kProtect[] = "protect";
-constexpr uint32_t kRealtimeConversionTimeoutMs = 5U;
-
+constexpr char kChunkDurationMs[] = "chunk_duration_ms";
+constexpr uint32_t kWorkerStartupTimeoutMs = 30000U;
+constexpr uint32_t kWorkerConfigureAttempts = 2U;
 rvc_ipc_t *g_ipc = nullptr;
 
 const char *rvc_filter_name(void *)
@@ -47,6 +49,7 @@ void rvc_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, kResampleSr, 0);
 	obs_data_set_default_double(settings, kRmsMixRate, 0.25);
 	obs_data_set_default_double(settings, kProtect, 0.33);
+	obs_data_set_default_int(settings, kChunkDurationMs, 8000);
 }
 
 obs_properties_t *rvc_filter_properties(void *)
@@ -79,6 +82,7 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_int(properties, kResampleSr, "Resample rate", 0, 192000, 1000);
 	obs_properties_add_float_slider(properties, kRmsMixRate, "RMS mix rate", 0.0, 1.0, 0.01);
 	obs_properties_add_float_slider(properties, kProtect, "Protect", 0.0, 0.5, 0.01);
+	obs_properties_add_int(properties, kChunkDurationMs, "Conversion block (ms)", 500, 30000, 500);
 	return properties;
 }
 
@@ -108,9 +112,21 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 		return;
 	}
 
-	const enum rvc_ipc_status status = rvc_ipc_configure(g_ipc, &request, &response, 10000U);
+	enum rvc_ipc_status status = RVC_IPC_STATUS_TRANSPORT_ERROR;
+	for (uint32_t attempt = 0U; attempt < kWorkerConfigureAttempts; ++attempt) {
+		response = {};
+		status = rvc_ipc_configure(g_ipc, &request, &response, kWorkerStartupTimeoutMs);
+		if (status == RVC_IPC_STATUS_OK)
+			break;
+	}
 	if (status != RVC_IPC_STATUS_OK) {
-		obs_log(LOG_ERROR, "Unable to configure RVC worker: status=%d", status);
+		const size_t error_size = std::min<size_t>(response.error_size, sizeof(response.error));
+		if (status == RVC_IPC_STATUS_WORKER_ERROR && error_size > 0U)
+			obs_log(LOG_ERROR, "Unable to configure RVC worker: %.*s", static_cast<int>(error_size),
+				response.error);
+		else
+			obs_log(LOG_ERROR, "Unable to configure RVC worker after %u attempts: status=%d",
+				kWorkerConfigureAttempts, status);
 		data->configured = false;
 		return;
 	}
@@ -123,15 +139,23 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	data->resample_sr = static_cast<int32_t>(obs_data_get_int(settings, kResampleSr));
 	data->rms_mix_rate = static_cast<float>(obs_data_get_double(settings, kRmsMixRate));
 	data->protect = static_cast<float>(obs_data_get_double(settings, kProtect));
+	data->chunk_duration_ms =
+		static_cast<int32_t>(std::clamp<int64_t>(obs_data_get_int(settings, kChunkDurationMs), 500, 30000));
 	data->configured = true;
-	data->bypass_conversion = false;
-	data->conversion_error_logged = false;
+	if (data->conversion_worker) {
+		data->conversion_worker->reset({data->model, data->f0_method, data->speaker, data->f0_up_key,
+						data->filter_radius, data->resample_sr, data->rms_mix_rate,
+						data->protect, data->chunk_duration_ms});
+	}
+	obs_log(LOG_INFO, "RVC filter configured; conversion begins after collecting %d ms of audio.",
+		data->chunk_duration_ms);
 }
 
 void *rvc_filter_create(obs_data_t *settings, obs_source_t *)
 {
 	rvc_filter_defaults(settings);
 	auto *data = new RvcFilterData{};
+	data->conversion_worker = std::make_unique<rvc::filter::ConversionWorker>(g_ipc);
 	rvc_filter_update(data, settings);
 	return data;
 }
@@ -148,7 +172,7 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 		return audio;
 
 	std::lock_guard<std::mutex> lock(data->mutex);
-	if (!data->configured || data->bypass_conversion)
+	if (!data->configured || !data->conversion_worker)
 		return audio;
 
 	obs_audio_info audio_info{};
@@ -156,72 +180,17 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 		return audio;
 
 	const uint16_t channels = static_cast<uint16_t>(get_audio_channels(audio_info.speakers));
-	std::vector<uint8_t> input_wav;
-	if (!rvc::filter::encode_wav(audio, audio_info.samples_per_sec, channels, input_wav))
+	if (channels == 0U || channels > MAX_AV_PLANES)
 		return audio;
-
-	auto request = std::make_unique<rvc_audio_request_t>();
-	auto response = std::make_unique<rvc_audio_response_t>();
-	request->audio_size = static_cast<uint32_t>(input_wav.size());
-	if (!rvc::utils::copy_string(request->model, data->model.c_str()) ||
-	    !rvc::utils::copy_string(request->input_format, "wav") ||
-	    !rvc::utils::copy_string(request->f0_method, data->f0_method.c_str()))
-		return audio;
-
-	request->speaker = data->speaker;
-	request->f0_up_key = data->f0_up_key;
-	request->filter_radius = data->filter_radius;
-	request->resample_sr = data->resample_sr > 0 ? data->resample_sr : static_cast<int32_t>(audio_info.samples_per_sec);
-	request->rms_mix_rate = data->rms_mix_rate;
-	request->protect = data->protect;
-	std::memcpy(request->audio, input_wav.data(), input_wav.size());
-
-	const enum rvc_ipc_status status = rvc_ipc_convert(g_ipc, request.get(), response.get(), kRealtimeConversionTimeoutMs);
-	if (status != RVC_IPC_STATUS_OK || response->audio_size == 0U) {
-		if (!data->conversion_error_logged) {
-			const size_t error_size = std::min<size_t>(response->error_size, sizeof(response->error));
-			const std::string error =
-				status == RVC_IPC_STATUS_TIMEOUT ? "RVC conversion exceeded the real-time audio deadline; passing through audio."
-				: error_size > 0U		      ? std::string(response->error, error_size)
-								      : "RVC conversion failed; passing through audio.";
-			obs_log(LOG_ERROR, "%s", error.c_str());
-			data->conversion_error_logged = true;
-		}
-		data->bypass_conversion = true;
-		return audio;
-	}
-
-	data->conversion_error_logged = false;
-
-	uint32_t output_sample_rate = 0U;
-	uint16_t output_channels = 0U;
-	std::vector<int16_t> output_samples;
-	if (response->audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES ||
-	    !rvc::filter::decode_wav(response->audio, response->audio_size, output_sample_rate, output_channels,
-				     output_samples))
-		return audio;
-
-	if (output_channels == 0U || output_channels > MAX_AV_PLANES || output_channels > channels)
-		return audio;
-
-	const size_t output_frames = output_samples.size() / output_channels;
-	if (output_sample_rate != audio_info.samples_per_sec || output_frames != audio->frames)
-		return audio;
-
 	for (uint16_t channel = 0U; channel < channels; ++channel) {
 		if (audio->data[channel] == nullptr)
 			return audio;
 	}
 
-	for (uint16_t channel = 0U; channel < channels; ++channel) {
-		auto *output = reinterpret_cast<float *>(audio->data[channel]);
-		const uint16_t source_channel = std::min<uint16_t>(channel, output_channels - 1U);
-		for (uint32_t frame = 0U; frame < audio->frames; ++frame) {
-			const int16_t sample =
-				output_samples[static_cast<size_t>(frame) * output_channels + source_channel];
-			output[frame] = static_cast<float>(sample) / 32768.0F;
-		}
-	}
+	data->conversion_worker->submit(*audio, audio_info.samples_per_sec, channels);
+	if (!data->conversion_worker->receive(*audio, channels))
+		for (uint16_t channel = 0U; channel < channels; ++channel)
+			std::memset(audio->data[channel], 0, static_cast<size_t>(audio->frames) * sizeof(float));
 
 	return audio;
 }
@@ -247,5 +216,8 @@ extern "C" void rvc_filter_register(rvc_ipc_t *ipc)
 
 extern "C" void rvc_filter_shutdown(void)
 {
+	/* Module unload can happen before OBS disposes the filter instances. Stop
+	 * every conversion thread while the IPC client is still alive. */
+	rvc::filter::ConversionWorker::stop_all();
 	g_ipc = nullptr;
 }
