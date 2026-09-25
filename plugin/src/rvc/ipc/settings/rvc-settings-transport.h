@@ -15,7 +15,7 @@ enum rvc_settings_response_status {
 typedef struct rvc_settings_request {
 	char model[RVC_SETTINGS_MAX_MODEL_BYTES];
 	char hubert_path[RVC_SETTINGS_MAX_PATH_BYTES];
-	char rmvpe_root[RVC_SETTINGS_MAX_PATH_BYTES];
+	char rmvpe_path[RVC_SETTINGS_MAX_PATH_BYTES];
 } rvc_settings_request_t;
 
 typedef struct rvc_settings_response {

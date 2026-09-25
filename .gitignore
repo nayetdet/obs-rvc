@@ -4,6 +4,7 @@
 # Keep repository-level configuration and metadata
 !/.devcontainer
 !/.githooks
+!/.gitattributes
 !/.github
 !/models
 !/plugin

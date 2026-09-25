@@ -10,5 +10,5 @@ class SettingsRequestSchema(BaseRequestSchema):
     _fields_ = [
         ("model", ctypes.c_char * Settings.max_model_bytes),
         ("hubert_path", ctypes.c_char * Settings.max_index_path_bytes),
-        ("rmvpe_root", ctypes.c_char * Settings.max_index_path_bytes),
+        ("rmvpe_path", ctypes.c_char * Settings.max_index_path_bytes),
     ]

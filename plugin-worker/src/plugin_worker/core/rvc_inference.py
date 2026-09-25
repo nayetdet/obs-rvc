@@ -35,7 +35,7 @@ class RVCInference:
         if not audio:
             raise RVCInferenceError()
 
-        if runtime.hubert_path is None or runtime.rmvpe_root is None:
+        if runtime.hubert_path is None or runtime.rmvpe_path is None:
             raise RVCInferenceError()
 
         if not model and not runtime.model:
@@ -43,8 +43,6 @@ class RVCInference:
 
         model_path: Path = Path(model or runtime.model or "")
         model_path = model_path.expanduser().resolve()
-        model_dir: Path = model_path.parent
-
         if model_path.suffix.lower() != ".pth" or not model_path.is_file():
             raise RVCInferenceModelNotFoundError()
 
@@ -53,14 +51,14 @@ class RVCInference:
                 if not runtime.hubert_path.expanduser().resolve().is_file():
                     raise RVCInferenceError()
 
-                rmvpe_root: Path = runtime.rmvpe_root.expanduser().resolve()
-                if not (rmvpe_root / "rmvpe.pt").is_file():
+                rmvpe_path: Path = runtime.rmvpe_path.expanduser().resolve()
+                if not rmvpe_path.is_file() or rmvpe_path.name != "rmvpe.pt":
                     raise RVCInferenceError()
 
                 os.environ.update(
                     hubert_path=str(runtime.hubert_path.expanduser().resolve()),
-                    rmvpe_root=str(rmvpe_root),
-                    weight_root=str(model_dir),
+                    rmvpe_root=str(rmvpe_path.parent),
+                    weight_root=str(model_path.parent),
                 )
 
                 from rvc.modules.vc.modules import VC

@@ -8,7 +8,7 @@ class Runtime(BaseModel):
 
     model: str | None = None
     hubert_path: Path | None = None
-    rmvpe_root: Path | None = None
+    rmvpe_path: Path | None = None
 
 
 runtime: Runtime = Runtime()

@@ -28,13 +28,13 @@ class SettingsHandler(BaseHandler[SettingsRequestSchema, SettingsResponseSchema]
 
     def handle(self, request: SettingsRequestSchema) -> SettingsResponseSchema:
         hubert_path: str = TextUtils.decode(request.hubert_path)
-        rmvpe_root: str = TextUtils.decode(request.rmvpe_root)
-        if not hubert_path or not rmvpe_root:
+        rmvpe_path: str = TextUtils.decode(request.rmvpe_path)
+        if not hubert_path or not rmvpe_path:
             return SettingsMapper.from_error_message("Worker settings are invalid.")
 
         runtime.model = TextUtils.decode(request.model) or None
         runtime.hubert_path = Path(hubert_path)
-        runtime.rmvpe_root = Path(rmvpe_root)
+        runtime.rmvpe_path = Path(rmvpe_path)
 
         self.rvc.reset()
         return SettingsMapper.from_success()

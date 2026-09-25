@@ -18,7 +18,7 @@
 namespace {
 constexpr char kModel[] = "model";
 constexpr char kHubertPath[] = "hubert_path";
-constexpr char kRmvpeRoot[] = "rmvpe_root";
+constexpr char kRmvpePath[] = "rmvpe_path";
 constexpr char kSpeaker[] = "speaker";
 constexpr char kF0UpKey[] = "f0_up_key";
 constexpr char kF0Method[] = "f0_method";
@@ -187,7 +187,7 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_t *properties = obs_properties_create();
 	obs_properties_add_path(properties, kModel, "Model", OBS_PATH_FILE, "RVC model (*.pth)", nullptr);
 	obs_properties_add_path(properties, kHubertPath, "HuBERT model", OBS_PATH_FILE, "HuBERT model (*.pt)", nullptr);
-	obs_properties_add_path(properties, kRmvpeRoot, "RMVPE directory", OBS_PATH_DIRECTORY, nullptr, nullptr);
+	obs_properties_add_path(properties, kRmvpePath, "RMVPE model", OBS_PATH_FILE, "RMVPE model (*.pt)", nullptr);
 
 	obs_property_t *f0_method = obs_properties_add_list(properties, kF0Method, "F0 method", OBS_COMBO_TYPE_LIST,
 							    OBS_COMBO_FORMAT_STRING);
@@ -221,7 +221,7 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	const char *f0_method = obs_data_get_string(settings, kF0Method);
 	copy_string(request.model, model);
 	copy_string(request.hubert_path, obs_data_get_string(settings, kHubertPath));
-	copy_string(request.rmvpe_root, obs_data_get_string(settings, kRmvpeRoot));
+	copy_string(request.rmvpe_path, obs_data_get_string(settings, kRmvpePath));
 
 	const enum rvc_ipc_status status = rvc_ipc_configure(g_ipc, &request, &response, 1000U);
 	if (status != RVC_IPC_STATUS_OK) {
