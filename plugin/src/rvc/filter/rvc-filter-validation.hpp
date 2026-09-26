@@ -20,4 +20,4 @@ struct ModelValidation {
 ModelValidation validate_models(obs_data_t *settings);
 bool model_path_modified(obs_properties_t *properties, obs_property_t *property, obs_data_t *settings);
 
-} // namespace rvc::filter
+}

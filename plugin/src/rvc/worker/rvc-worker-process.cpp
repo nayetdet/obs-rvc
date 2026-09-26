@@ -52,7 +52,7 @@ bool launch(rvc_worker_process_t &worker, const fs::path &path)
 	return true;
 }
 #endif
-} // namespace
+}
 
 bool rvc_worker_start(rvc_worker_process_t **process)
 {
@@ -70,7 +70,6 @@ bool rvc_worker_start(rvc_worker_process_t **process)
 
 	const fs::path worker(worker_file);
 	bfree(worker_file);
-
 	if (!fs::is_regular_file(worker)) {
 		obs_log(LOG_ERROR, "OBS RVC worker executable not found: %s", worker.string().c_str());
 		return false;

@@ -33,4 +33,4 @@ inline bool is_regular_file(const char *path, const char *extension = nullptr, c
 	}
 }
 
-} // namespace rvc::utils
+}

@@ -7,8 +7,6 @@ import iceoryx2 as iox2
 
 from ...schemas.requests.base_request_schema import BaseRequestSchema
 from ...schemas.responses.base_response_schema import BaseResponseSchema
-from ..publishers.base_publisher import BasePublisher
-from ..subscribers.base_subscriber import BaseSubscriber
 
 RequestSchema = TypeVar("RequestSchema", bound=BaseRequestSchema)
 ResponseSchema = TypeVar("ResponseSchema", bound=BaseResponseSchema)
@@ -20,14 +18,10 @@ class BaseHandler(Generic[RequestSchema, ResponseSchema], ABC):
         service_name: str,
         request_schema: type[RequestSchema],
         response_schema: type[ResponseSchema],
-        publisher: BasePublisher[ResponseSchema],
-        subscriber: BaseSubscriber[RequestSchema],
     ) -> None:
         self.service_name: str = service_name
         self.request_schema: type[RequestSchema] = request_schema
         self.response_schema: type[ResponseSchema] = response_schema
-        self.publisher: BasePublisher[ResponseSchema] = publisher
-        self.subscriber: BaseSubscriber[RequestSchema] = subscriber
 
     def register(self, node: iox2.Node) -> iox2.Server:
         return (
@@ -39,11 +33,12 @@ class BaseHandler(Generic[RequestSchema, ResponseSchema], ABC):
         )
 
     def process(self, server: iox2.Server) -> bool:
-        request: iox2.ActiveRequest | None = self.subscriber.receive(server)
+        request: iox2.ActiveRequest | None = server.receive()
         if request is None:
             return False
         try:
-            self.publisher.publish(request, self.handle(self.subscriber.contents(request)))
+            response: ResponseSchema = self.handle(request.payload().contents)
+            request.send_copy(response)
         finally:
             request.delete()
         return True

@@ -29,4 +29,4 @@ private:
 	std::unique_ptr<Impl> impl;
 };
 
-} // namespace rvc
+}

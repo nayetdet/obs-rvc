@@ -8,6 +8,7 @@
 !/cmake
 !/data
 !/src
+!/tests
 !.clang-format
 !.gersemirc
 !.gersemi

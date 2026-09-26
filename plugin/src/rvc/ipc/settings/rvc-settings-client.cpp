@@ -46,4 +46,4 @@ core::BaseTransportStatus RvcSettingsClient::configure(const rvc_settings_reques
 							   : core::BaseTransportStatus::RemoteError;
 }
 
-} // namespace rvc
+}

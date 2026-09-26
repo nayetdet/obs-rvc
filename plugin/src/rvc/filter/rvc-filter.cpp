@@ -12,12 +12,21 @@
 #include <plugin-support.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
+#include <system_error>
+#include <set>
 #include <string>
-#include <vector>
+#include <thread>
+
+#if defined(__linux__)
+#include <sched.h>
+#endif
 
 namespace {
 constexpr char kSpeaker[] = "speaker";
@@ -28,13 +37,48 @@ constexpr char kResampleSr[] = "resample_sr";
 constexpr char kRmsMixRate[] = "rms_mix_rate";
 constexpr char kProtect[] = "protect";
 constexpr char kChunkDurationMs[] = "chunk_duration_ms";
+constexpr char kInferenceThreads[] = "inference_threads";
 constexpr uint32_t kWorkerStartupTimeoutMs = 30000U;
 constexpr uint32_t kWorkerConfigureAttempts = 2U;
 rvc_ipc_t *g_ipc = nullptr;
 
+int64_t default_inference_threads()
+{
+#if defined(__linux__)
+	std::set<std::pair<std::string, std::string>> physical_cores;
+	cpu_set_t affinity;
+	CPU_ZERO(&affinity);
+	const bool has_affinity = sched_getaffinity(0, sizeof(affinity), &affinity) == 0;
+	const std::filesystem::path cpu_root("/sys/devices/system/cpu");
+	std::error_code error;
+	for (auto entry = std::filesystem::directory_iterator(cpu_root, error);
+	     !error && entry != std::filesystem::directory_iterator(); entry.increment(error)) {
+		const std::string name = entry->path().filename().string();
+		if (name.rfind("cpu", 0) != 0 || name.size() <= 3 ||
+		    !std::all_of(name.begin() + 3, name.end(), [](unsigned char value) { return std::isdigit(value); }))
+			continue;
+
+		const unsigned long cpu = std::stoul(name.substr(3));
+		if (has_affinity && (cpu >= CPU_SETSIZE || !CPU_ISSET(static_cast<int>(cpu), &affinity)))
+			continue;
+
+		std::ifstream package_file(entry->path() / "topology/physical_package_id");
+		std::ifstream core_file(entry->path() / "topology/core_id");
+		std::string package, core;
+		if (package_file >> package && core_file >> core)
+			physical_cores.emplace(package, core);
+	}
+
+	if (!physical_cores.empty())
+		return static_cast<int64_t>(physical_cores.size());
+#endif
+	const uint32_t detected = std::thread::hardware_concurrency();
+	return std::clamp<int64_t>(detected == 0U ? 1U : detected, 1, 256);
+}
+
 const char *rvc_filter_name(void *)
 {
-	return "RVC";
+	return "Retrieval-based Voice Conversion";
 }
 
 void rvc_filter_defaults(obs_data_t *settings)
@@ -42,14 +86,15 @@ void rvc_filter_defaults(obs_data_t *settings)
 	rvc::utils::set_default_module_file(settings, rvc::filter::kModel, "models/rvc/miku_default_rvc.pth");
 	rvc::utils::set_default_module_file(settings, rvc::filter::kHubertPath, "models/hubert/hubert_base.pt");
 	rvc::utils::set_default_module_file(settings, rvc::filter::kRmvpePath, "models/rmvpe/rmvpe.pt");
-	obs_data_set_default_string(settings, kF0Method, "rmvpe");
+	obs_data_set_default_string(settings, kF0Method, "pm");
 	obs_data_set_default_int(settings, kSpeaker, 0);
 	obs_data_set_default_int(settings, kF0UpKey, 0);
 	obs_data_set_default_int(settings, kFilterRadius, 3);
 	obs_data_set_default_int(settings, kResampleSr, 0);
-	obs_data_set_default_double(settings, kRmsMixRate, 0.25);
+	obs_data_set_default_double(settings, kRmsMixRate, 1.0);
 	obs_data_set_default_double(settings, kProtect, 0.33);
-	obs_data_set_default_int(settings, kChunkDurationMs, 8000);
+	obs_data_set_default_int(settings, kChunkDurationMs, 500);
+	obs_data_set_default_int(settings, kInferenceThreads, default_inference_threads());
 }
 
 obs_properties_t *rvc_filter_properties(void *)
@@ -82,7 +127,8 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_int(properties, kResampleSr, "Resample rate", 0, 192000, 1000);
 	obs_properties_add_float_slider(properties, kRmsMixRate, "RMS mix rate", 0.0, 1.0, 0.01);
 	obs_properties_add_float_slider(properties, kProtect, "Protect", 0.0, 0.5, 0.01);
-	obs_properties_add_int(properties, kChunkDurationMs, "Conversion block (ms)", 500, 30000, 500);
+	obs_properties_add_int(properties, kChunkDurationMs, "Conversion block (ms)", 500, 1000, 10);
+	obs_properties_add_int(properties, kInferenceThreads, "CPU cores for inference", 1, 256, 1);
 	return properties;
 }
 
@@ -92,13 +138,14 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	if (data == nullptr || g_ipc == nullptr)
 		return;
 
-	std::lock_guard<std::mutex> lock(data->mutex);
+	std::lock_guard<std::mutex> update_lock(data->update_mutex);
 	rvc_settings_request_t request{};
 	rvc_settings_response_t response{};
 	const char *model = obs_data_get_string(settings, rvc::filter::kModel);
 	const char *f0_method = obs_data_get_string(settings, kF0Method);
 	const rvc::filter::ModelValidation validation = rvc::filter::validate_models(settings);
 	if (!validation.valid) {
+		std::lock_guard<std::mutex> lock(data->mutex);
 		data->configured = false;
 		obs_log(LOG_ERROR, "Unable to configure RVC filter: %s", validation.message.c_str());
 		return;
@@ -107,10 +154,15 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	if (!rvc::utils::copy_string(request.model, model) ||
 	    !rvc::utils::copy_string(request.hubert_path, obs_data_get_string(settings, rvc::filter::kHubertPath)) ||
 	    !rvc::utils::copy_string(request.rmvpe_path, obs_data_get_string(settings, rvc::filter::kRmvpePath))) {
+		std::lock_guard<std::mutex> lock(data->mutex);
 		data->configured = false;
 		obs_log(LOG_ERROR, "Unable to configure RVC filter: model path exceeds IPC limits.");
 		return;
 	}
+
+	const int32_t inference_threads =
+		static_cast<int32_t>(std::clamp<int64_t>(obs_data_get_int(settings, kInferenceThreads), 1, 256));
+	request.inference_threads = static_cast<uint32_t>(inference_threads);
 
 	enum rvc_ipc_status status = RVC_IPC_STATUS_TRANSPORT_ERROR;
 	for (uint32_t attempt = 0U; attempt < kWorkerConfigureAttempts; ++attempt) {
@@ -119,7 +171,9 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 		if (status == RVC_IPC_STATUS_OK)
 			break;
 	}
+
 	if (status != RVC_IPC_STATUS_OK) {
+		std::lock_guard<std::mutex> lock(data->mutex);
 		const size_t error_size = std::min<size_t>(response.error_size, sizeof(response.error));
 		if (status == RVC_IPC_STATUS_WORKER_ERROR && error_size > 0U)
 			obs_log(LOG_ERROR, "Unable to configure RVC worker: %.*s", static_cast<int>(error_size),
@@ -131,6 +185,8 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 		return;
 	}
 
+	std::lock_guard<std::mutex> lock(data->mutex);
+	data->inference_threads = inference_threads;
 	data->model = model != nullptr ? model : "";
 	data->f0_method = f0_method != nullptr ? f0_method : "rmvpe";
 	data->speaker = static_cast<int32_t>(obs_data_get_int(settings, kSpeaker));
@@ -139,8 +195,10 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	data->resample_sr = static_cast<int32_t>(obs_data_get_int(settings, kResampleSr));
 	data->rms_mix_rate = static_cast<float>(obs_data_get_double(settings, kRmsMixRate));
 	data->protect = static_cast<float>(obs_data_get_double(settings, kProtect));
+	const int64_t saved_duration = obs_data_get_int(settings, kChunkDurationMs);
 	data->chunk_duration_ms =
-		static_cast<int32_t>(std::clamp<int64_t>(obs_data_get_int(settings, kChunkDurationMs), 500, 30000));
+		saved_duration > 1000 ? 500 : static_cast<int32_t>(std::clamp<int64_t>(saved_duration, 500, 1000));
+	obs_data_set_int(settings, kChunkDurationMs, data->chunk_duration_ms);
 	data->configured = true;
 	if (data->conversion_worker) {
 		data->conversion_worker->reset({data->model, data->f0_method, data->speaker, data->f0_up_key,
@@ -149,6 +207,7 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	}
 	obs_log(LOG_INFO, "RVC filter configured; conversion begins after collecting %d ms of audio.",
 		data->chunk_duration_ms);
+	obs_log(LOG_INFO, "RVC worker configured to use %d CPU threads.", data->inference_threads);
 }
 
 void *rvc_filter_create(obs_data_t *settings, obs_source_t *)
@@ -196,7 +255,7 @@ struct obs_audio_data *rvc_filter_audio(void *raw_data, struct obs_audio_data *a
 }
 
 struct obs_source_info rvc_filter_info{};
-} // namespace
+}
 
 extern "C" void rvc_filter_register(rvc_ipc_t *ipc)
 {
@@ -216,8 +275,6 @@ extern "C" void rvc_filter_register(rvc_ipc_t *ipc)
 
 extern "C" void rvc_filter_shutdown(void)
 {
-	/* Module unload can happen before OBS disposes the filter instances. Stop
-	 * every conversion thread while the IPC client is still alive. */
 	rvc::filter::ConversionWorker::stop_all();
 	g_ipc = nullptr;
 }

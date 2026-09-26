@@ -11,4 +11,4 @@ using Service = iox2::PortFactoryRequestResponse<iox2::ServiceType::Ipc, Request
 
 template<typename Request, typename Response>
 using Client = iox2::Client<iox2::ServiceType::Ipc, Request, void, Response, void>;
-} // namespace core
+}

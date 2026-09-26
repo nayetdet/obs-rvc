@@ -15,7 +15,7 @@ else
   OBS_INSTALL_PREFIX ?= /usr
 endif
 
-.PHONY: build install clean
+.PHONY: build install clean check
 
 build:
 	cmake --preset $(BUILD_PRESET)
@@ -52,3 +52,8 @@ clean:
 		sudo sh -c 'while IFS= read -r path; do rm -f -- "$$path"; done < "$$1"' sh "$(BUILD_DIR)/install_manifest.txt"; \
 	fi
 endif
+
+check:
+	./build-aux/run-clang-format --fail-error --check
+	@command -v gersemi >/dev/null || { printf '%s\n' 'gersemi is required for CMake formatting checks.' >&2; exit 2; }
+	./build-aux/run-gersemi --fail-error --check

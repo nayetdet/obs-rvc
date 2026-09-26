@@ -32,4 +32,4 @@ bool model_path_modified(obs_properties_t *properties, obs_property_t *, obs_dat
 	return true;
 }
 
-} // namespace rvc::filter
+}

@@ -18,4 +18,4 @@ template<size_t Size> bool copy_string(char (&destination)[Size], const char *so
 	return true;
 }
 
-} // namespace rvc::utils
+}

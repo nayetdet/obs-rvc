@@ -15,6 +15,7 @@ struct ConversionOptions {
 	float rms_mix_rate, protect;
 	int32_t chunk_duration_ms;
 };
+
 class ConversionWorker {
 public:
 	explicit ConversionWorker(rvc_ipc_t *ipc);
@@ -32,4 +33,4 @@ private:
 	struct Impl;
 	std::unique_ptr<Impl> impl;
 };
-} // namespace rvc::filter
+}

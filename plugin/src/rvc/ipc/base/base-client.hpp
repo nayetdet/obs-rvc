@@ -72,4 +72,4 @@ protected:
 	Node &node;
 };
 
-} // namespace core
+}

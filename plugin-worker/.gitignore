@@ -4,6 +4,7 @@
 # Except for worker project files
 !/src
 !/scripts
+!/tests
 !.gitignore
 !LICENSE
 !Makefile

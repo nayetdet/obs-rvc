@@ -14,6 +14,7 @@ class ConversionWorker;
 
 struct RvcFilterData {
 	std::mutex mutex;
+	std::mutex update_mutex;
 	std::string model;
 	std::string f0_method;
 	int32_t speaker = 0;
@@ -22,7 +23,8 @@ struct RvcFilterData {
 	int32_t resample_sr = 0;
 	float rms_mix_rate = 0.25F;
 	float protect = 0.33F;
-	int32_t chunk_duration_ms = 8000;
+	int32_t chunk_duration_ms = 500;
+	int32_t inference_threads = 1;
 	bool configured = false;
 	std::unique_ptr<rvc::filter::ConversionWorker> conversion_worker;
 };

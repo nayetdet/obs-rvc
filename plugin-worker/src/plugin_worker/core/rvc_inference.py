@@ -3,35 +3,33 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from io import BytesIO
 from pathlib import Path
 from typing import Any
-
-import numpy as np
-import soundfile as sf
 
 from ..exceptions.rvc_inference_error import RVCInferenceError
 from ..exceptions.rvc_inference_model_not_found import RVCInferenceModelNotFoundError
 from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
 from ..runtime import runtime
-from ..utils.audio_utils import AudioUtils
-from ..utils.compatibility_utils import CompatibilityUtils
+from ..utils.audio_utils import encode_wav
+from ..utils.compatibility_utils import configure_torch
+from .rvc_inference_streaming import infer_window
 
 logger = logging.getLogger(__name__)
 
 
 class RVCInference:
-    models: dict[str, Any] = {}
-    model_errors: dict[str, str] = {}
-    model_locks: dict[str, threading.Lock] = {}
-    lock: threading.Lock = threading.Lock()
-    vc_class: Any = None
+    def __init__(self) -> None:
+        self.models: dict[str, Any] = {}
+        self.model_errors: dict[str, str] = {}
+        self.model_locks: dict[str, threading.Lock] = {}
+        self.realtime_pitch_warning_models: set[str] = set()
+        self.lock = threading.Lock()
+        self.vc_class: Any = None
 
     def convert(
         self,
         audio: bytes,
         model: str | None,
-        input_format: str,
         options: RVCInferenceOptionsSchema,
     ) -> tuple[bytes, int]:
         if not audio:
@@ -43,31 +41,36 @@ class RVCInference:
         if not model and not runtime.model:
             raise RVCInferenceModelNotFoundError()
 
-        model_path: Path = Path(model or runtime.model or "")
-        model_path = model_path.expanduser().resolve()
+        model_path = Path(model or runtime.model or "").expanduser().resolve()
         if model_path.suffix.lower() != ".pth" or not model_path.is_file():
             raise RVCInferenceModelNotFoundError()
 
         with self.lock:
             if self.vc_class is None:
-                if not runtime.hubert_path.expanduser().resolve().is_file():
+                hubert_path = runtime.hubert_path.expanduser().resolve()
+                rmvpe_path = runtime.rmvpe_path.expanduser().resolve()
+                if not hubert_path.is_file():
                     raise RVCInferenceError()
 
-                rmvpe_path: Path = runtime.rmvpe_path.expanduser().resolve()
                 if not rmvpe_path.is_file() or rmvpe_path.name != "rmvpe.pt":
                     raise RVCInferenceError()
 
                 os.environ.update(
-                    hubert_path=str(runtime.hubert_path.expanduser().resolve()),
+                    hubert_path=str(hubert_path),
                     rmvpe_root=str(rmvpe_path.parent),
                     weight_root=str(model_path.parent),
                     index_root=str(model_path.parent),
                 )
 
-                CompatibilityUtils.configure_torch()
-                from rvc.modules.vc import modules as vc_modules
+                effective_threads = configure_torch(runtime.inference_threads)
+                if effective_threads != runtime.inference_threads:
+                    logger.info(
+                        "Limiting %d requested inference threads to %d physical CPU cores.",
+                        runtime.inference_threads,
+                        effective_threads,
+                    )
 
-                vc_modules.load_audio = AudioUtils.load_audio
+                from rvc.modules.vc import modules as vc_modules
                 self.vc_class = vc_modules.VC
 
             key: str = str(model_path)
@@ -79,6 +82,11 @@ class RVCInference:
                 try:
                     vc: Any = self.vc_class()
                     vc.get_vc(key)
+
+                    from rvc.modules.vc.utils import load_hubert
+
+                    vc.hubert_model = load_hubert(vc.config, str(runtime.hubert_path.expanduser().resolve()))
+                    logger.info("RVC inference device: %s", vc.config.device)
                 except Exception as exc:
                     logger.exception("Unable to load RVC model: %s", model_path)
                     message = f"Unable to load RVC model '{model_path.name}'."
@@ -89,33 +97,19 @@ class RVCInference:
             model_lock: threading.Lock = self.model_locks.setdefault(key, threading.Lock())
 
         with model_lock:
-            with AudioUtils.input_file(audio, input_format) as input_path:
-                vc: Any = self.models[key]
-                target_sr: int | None
-                output: Any
-                error: Any
-                target_sr, output, _, error = vc.vc_inference(
-                    options.speaker,
-                    str(input_path),
-                    options.f0_up_key,
-                    options.f0_method,
-                    filter_radius=options.filter_radius,
-                    resample_sr=options.resample_sr,
-                    rms_mix_rate=options.rms_mix_rate,
-                    protect=options.protect,
-                    hubert_path=str(runtime.hubert_path.expanduser().resolve()),
-                )
-
-                if error or output is None or target_sr is None:
-                    raise RVCInferenceError()
-
-                buffer: BytesIO = BytesIO()
-                sf.write(buffer, np.asarray(output, dtype=np.float32), target_sr, format="WAV", subtype="PCM_16")
-                return buffer.getvalue(), int(target_sr)
+            vc: Any = self.models[key]
+            if str(vc.config.device) == "cpu" and options.f0_method != "pm":
+                if key not in self.realtime_pitch_warning_models:
+                    logger.warning("Using PM pitch tracking for realtime CPU conversion.")
+                    self.realtime_pitch_warning_models.add(key)
+                options = options.model_copy(update={"f0_method": "pm"})
+            output, target_sr = infer_window(vc, audio, options)
+            return encode_wav(output, target_sr), target_sr
 
     def reset(self) -> None:
         with self.lock:
             self.models.clear()
             self.model_errors.clear()
             self.model_locks.clear()
+            self.realtime_pitch_warning_models.clear()
             self.vc_class = None

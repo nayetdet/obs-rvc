@@ -27,12 +27,13 @@ template<typename T> T read_le(const uint8_t *data)
 	return value;
 }
 
-} // namespace
+}
 
 inline bool encode_wav(const obs_audio_data *audio, uint32_t sample_rate, uint16_t channels, std::vector<uint8_t> &wav)
 {
 	if (audio == nullptr || audio->frames == 0U || sample_rate == 0U || channels == 0U || channels > MAX_AV_PLANES)
 		return false;
+
 	for (uint16_t channel = 0U; channel < channels; ++channel) {
 		if (audio->data[channel] == nullptr)
 			return false;
@@ -125,4 +126,4 @@ inline bool decode_wav(const uint8_t *data, uint32_t size, uint32_t &sample_rate
 	return true;
 }
 
-} // namespace rvc::filter
+}

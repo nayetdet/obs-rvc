@@ -10,7 +10,6 @@ class AudioRequestSchema(BaseRequestSchema):
     _fields_ = [
         ("audio_size", ctypes.c_uint32),
         ("model", ctypes.c_char * Settings.max_model_bytes),
-        ("input_format", ctypes.c_char * 8),
         ("speaker", ctypes.c_int32),
         ("f0_up_key", ctypes.c_int32),
         ("f0_method", ctypes.c_char * 8),

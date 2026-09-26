@@ -52,7 +52,7 @@ ContinuationIndentWidth: 8
 Cpp11BracedListStyle: true
 DerivePointerAlignment: false
 DisableFormat: false
-FixNamespaceComments: true
+FixNamespaceComments: false
 ForEachMacros:
   - 'json_object_foreach'
   - 'json_object_foreach_safe'
@@ -156,7 +156,7 @@ ContinuationIndentWidth: 4
 EmptyLineAfterAccessModifier: Never
 EmptyLineBeforeAccessModifier: LogicalBlock
 ExperimentalAutoDetectBinPacking: false
-FixNamespaceComments: true
+FixNamespaceComments: false
 IndentAccessModifiers: false
 IndentCaseBlocks: false
 IndentCaseLabels: true
