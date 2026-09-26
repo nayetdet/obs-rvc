@@ -10,7 +10,9 @@
 #include <windows.h>
 #else
 #include <csignal>
+#if defined(__linux__)
 #include <sys/prctl.h>
+#endif
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -42,8 +44,10 @@ bool launch(rvc_worker_process_t &worker, const fs::path &path)
 	if (worker.pid < 0)
 		return false;
 	if (worker.pid == 0) {
+#if defined(__linux__)
 		if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 || getppid() == 1)
 			_exit(127);
+#endif
 		if (chdir(path.parent_path().c_str()) != 0)
 			_exit(127);
 		execl(path.c_str(), path.c_str(), nullptr);

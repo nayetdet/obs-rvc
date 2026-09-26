@@ -120,8 +120,10 @@ bool StreamAssembler::stitch(const std::vector<float> &converted, size_t hop, si
 
 	const auto start = converted.begin() + (context + offset) * channels;
 	result.assign(start, start + hop * channels);
+	constexpr float pi = 3.14159265358979323846F;
 	for (size_t frame = 0; frame < overlap; ++frame) {
-		const float fade = 0.5F - 0.5F * std::cos(3.14159265358979323846 * frame / (overlap - 1));
+		const float position = static_cast<float>(frame) / static_cast<float>(overlap - 1);
+		const float fade = 0.5F - 0.5F * std::cos(pi * position);
 		for (size_t channel = 0; channel < channels; ++channel) {
 			const size_t i = frame * channels + channel;
 			const float previous = tail.empty() ? 0.0F : tail[i];
