@@ -9,6 +9,7 @@
 #include <obs.h>
 #include <obs-data.h>
 #include <obs-properties.h>
+#include <graphics/graphics.h>
 #include <plugin-support.h>
 
 #include <algorithm>
@@ -40,9 +41,34 @@ constexpr char kChunkDurationMs[] = "chunk_duration_ms";
 constexpr char kInitialChunkDurationMs[] = "initial_chunk_duration_ms";
 constexpr char kMaximumChunkDurationMs[] = "maximum_chunk_duration_ms";
 constexpr char kInferenceThreads[] = "inference_threads";
+constexpr char kRenderingWarning[] = "rendering_warning";
 constexpr uint32_t kWorkerStartupTimeoutMs = 30000U;
 constexpr uint32_t kWorkerConfigureAttempts = 2U;
 rvc_ipc_t *g_ipc = nullptr;
+
+bool is_software_renderer(std::string device_name)
+{
+	std::transform(device_name.begin(), device_name.end(), device_name.begin(),
+		       [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+	return device_name.find("llvmpipe") != std::string::npos || device_name.find("softpipe") != std::string::npos ||
+	       device_name.find("swiftshader") != std::string::npos ||
+	       device_name.find("basic render driver") != std::string::npos ||
+	       device_name.find("microsoft warp") != std::string::npos;
+}
+
+std::string software_rendering_warning()
+{
+	obs_enter_graphics();
+	const char *device_name = gs_get_device_name();
+	const std::string device = device_name != nullptr ? device_name : "";
+	obs_leave_graphics();
+
+	if (!is_software_renderer(device))
+		return {};
+
+	return "OBS is rendering on the CPU (" + device +
+	       "). This competes with RVC inference and can cause audio underflows. Enable GPU rendering.";
+}
 
 int64_t default_inference_threads()
 {
@@ -106,6 +132,14 @@ void rvc_filter_defaults(obs_data_t *settings)
 obs_properties_t *rvc_filter_properties(void *)
 {
 	obs_properties_t *properties = obs_properties_create();
+	const std::string rendering_warning = software_rendering_warning();
+	if (!rendering_warning.empty()) {
+		obs_property_t *warning = obs_properties_add_text(properties, kRenderingWarning,
+								  rendering_warning.c_str(), OBS_TEXT_INFO);
+		if (warning != nullptr)
+			obs_property_text_set_info_type(warning, OBS_TEXT_INFO_WARNING);
+	}
+
 	obs_properties_add_path(properties, rvc::filter::kModel, "Model", OBS_PATH_FILE, "RVC model (*.pth)", nullptr);
 	obs_properties_add_path(properties, rvc::filter::kHubertPath, "HuBERT model", OBS_PATH_FILE,
 				"HuBERT model (*.pt)", nullptr);
@@ -113,8 +147,10 @@ obs_properties_t *rvc_filter_properties(void *)
 				nullptr);
 	obs_property_t *status = obs_properties_add_text(properties, rvc::filter::kModelStatus,
 							 "All model files are valid.", OBS_TEXT_INFO);
+
 	if (status != nullptr)
 		obs_property_text_set_info_type(status, OBS_TEXT_INFO_NORMAL);
+
 	obs_property_set_modified_callback(obs_properties_get(properties, rvc::filter::kModel),
 					   rvc::filter::model_path_modified);
 	obs_property_set_modified_callback(obs_properties_get(properties, rvc::filter::kHubertPath),
@@ -123,6 +159,7 @@ obs_properties_t *rvc_filter_properties(void *)
 					   rvc::filter::model_path_modified);
 	obs_property_t *f0_method = obs_properties_add_list(properties, kF0Method, "F0 method", OBS_COMBO_TYPE_LIST,
 							    OBS_COMBO_FORMAT_STRING);
+
 	obs_property_list_add_string(f0_method, "RMVPE", "rmvpe");
 	obs_property_list_add_string(f0_method, "Harvest", "harvest");
 	obs_property_list_add_string(f0_method, "Crepe", "crepe");
@@ -137,6 +174,7 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_int(properties, kMaximumChunkDurationMs, "Maximum conversion block (ms)", 500, 2000, 10);
 	obs_properties_add_int(properties, kInferenceThreads, "CPU cores for inference (two reserved for OBS)", 1, 256,
 			       1);
+
 	return properties;
 }
 
