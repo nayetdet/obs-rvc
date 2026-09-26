@@ -32,9 +32,12 @@ def physical_cpu_count() -> int:
 def configure_torch(num_threads: int = 1) -> int:
     import torch
 
-    effective_threads = min(max(1, min(256, int(num_threads))), physical_cpu_count())
+    physical_cores = physical_cpu_count()
+    worker_limit = physical_cores if physical_cores < 4 else physical_cores - 2
+    effective_threads = min(max(1, min(256, int(num_threads))), worker_limit)
     os.environ["OMP_NUM_THREADS"] = str(effective_threads)
     os.environ["MKL_NUM_THREADS"] = str(effective_threads)
+    torch.backends.mkldnn.enabled = True
     torch.set_num_threads(effective_threads)
     try:
         torch.set_num_interop_threads(1)

@@ -1,6 +1,5 @@
 #include "rvc-audio-client.hpp"
 
-#include <cstring>
 #include <mutex>
 
 namespace rvc {
@@ -15,8 +14,6 @@ struct RvcAudioClient::Impl {
 	std::unique_ptr<core::Service<RvcAudioRequest, RvcAudioResponse>> service;
 	std::unique_ptr<core::Client<RvcAudioRequest, RvcAudioResponse>> client;
 	std::mutex convert_mutex;
-	RvcAudioRequest request;
-	RvcAudioResponse response;
 };
 
 RvcAudioClient::RvcAudioClient(core::Node &node) : core::BaseClient(node), impl(std::make_unique<Impl>())
@@ -38,18 +35,15 @@ core::BaseTransportStatus RvcAudioClient::convert(const rvc_audio_request_t &req
 		return core::BaseTransportStatus::TransportError;
 
 	std::lock_guard<std::mutex> lock(impl->convert_mutex);
-	std::memcpy(&impl->request, &request, sizeof(impl->request));
-	const core::BaseTransportStatus status = exchange(*impl->client, impl->request, impl->response, timeout_ms);
-	std::memcpy(&response, &impl->response, sizeof(response));
-
+	const core::BaseTransportStatus status = exchange(*impl->client, request, response, timeout_ms);
 	if (status != core::BaseTransportStatus::Ok)
 		return status;
 
-	if (impl->response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES)
+	if (response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES)
 		return core::BaseTransportStatus::TransportError;
 
-	return impl->response.status == RVC_AUDIO_RESPONSE_OK ? core::BaseTransportStatus::Ok
-							      : core::BaseTransportStatus::RemoteError;
+	return response.status == RVC_AUDIO_RESPONSE_OK ? core::BaseTransportStatus::Ok
+							: core::BaseTransportStatus::RemoteError;
 }
 
 }

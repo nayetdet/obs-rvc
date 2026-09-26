@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace rvc::filter {
-constexpr unsigned kStreamHistoryMs = 80;
+constexpr unsigned kStreamHistoryMs = 40;
 constexpr unsigned kStreamOverlapMs = 30;
 constexpr unsigned kStreamSearchMs = 10;
-constexpr unsigned kStreamLookaheadMs = kStreamOverlapMs + kStreamSearchMs + 60;
+constexpr unsigned kStreamLookaheadMs = kStreamOverlapMs + kStreamSearchMs + 20;
 
 class AudioSampleQueue {
 public:

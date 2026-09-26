@@ -23,7 +23,8 @@ struct RvcFilterData {
 	int32_t resample_sr = 0;
 	float rms_mix_rate = 0.25F;
 	float protect = 0.33F;
-	int32_t chunk_duration_ms = 500;
+	int32_t initial_chunk_duration_ms = 500;
+	int32_t maximum_chunk_duration_ms = 2000;
 	int32_t inference_threads = 1;
 	bool configured = false;
 	std::unique_ptr<rvc::filter::ConversionWorker> conversion_worker;

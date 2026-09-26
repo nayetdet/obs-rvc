@@ -21,6 +21,8 @@ namespace rvc::filter {
 namespace {
 constexpr uint32_t kWarmupConversionTimeoutMs = 180000U;
 constexpr uint32_t kConversionTimeoutMs = 60000U;
+constexpr size_t kInitialOutputBlocks = 3U;
+constexpr size_t kOutputLowWaterBlocks = kInitialOutputBlocks - 1U;
 
 std::mutex workers_mutex;
 std::set<ConversionWorker *> workers;
@@ -76,6 +78,7 @@ void make_planar_audio(const std::vector<float> &interleaved, uint16_t channels,
 			planes[channel][frame] = interleaved[static_cast<size_t>(frame) * channels + channel];
 		audio.data[channel] = reinterpret_cast<uint8_t *>(planes[channel].data());
 	}
+
 	audio.frames = frames;
 }
 
@@ -130,12 +133,16 @@ struct ConversionWorker::Impl {
 	uint32_t sample_rate = 0U;
 	uint16_t channels = 0U;
 	uint64_t generation = 0U;
+	int32_t active_chunk_duration_ms = 500;
+	int32_t startup_chunk_duration_ms = 500;
+	int32_t maximum_chunk_duration_ms = 2000;
 	bool configured = false;
 	bool has_completed_conversion = false;
 	bool stopping = false;
 	bool discontinuity = true;
 	bool playback_started = false;
 	float playback_gain = 0.0F;
+	uint64_t output_underflows = 0U;
 	std::thread thread;
 
 	void stop()
@@ -186,10 +193,14 @@ void ConversionWorker::reset(const ConversionOptions &options)
 	if (impl->stopping)
 		return;
 	impl->options = options;
+	impl->active_chunk_duration_ms = options.initial_chunk_duration_ms;
+	impl->startup_chunk_duration_ms = options.initial_chunk_duration_ms;
+	impl->maximum_chunk_duration_ms = options.maximum_chunk_duration_ms;
 	impl->input.clear();
 	impl->output.clear();
 	impl->playback_gain = 0.0F;
 	impl->playback_started = false;
+	impl->output_underflows = 0U;
 	++impl->generation;
 	impl->configured = true;
 	impl->has_completed_conversion = false;
@@ -214,19 +225,19 @@ void ConversionWorker::submit(const obs_audio_data &audio, uint32_t sample_rate,
 		impl->output.clear();
 		impl->playback_gain = 0.0F;
 		impl->playback_started = false;
+		impl->output_underflows = 0U;
 		++impl->generation;
 		impl->discontinuity = true;
 	}
 
 	impl->input.append(samples);
 	const size_t maximum_samples =
-		(2U * conversion_frame_count(sample_rate, impl->options.chunk_duration_ms, channels) +
+		(2U * conversion_frame_count(sample_rate, impl->active_chunk_duration_ms, channels) +
 		 frame_count_for_duration(sample_rate, kStreamLookaheadMs)) *
 		channels;
 
 	if (impl->input.size() > maximum_samples) {
-		const size_t hop_frames =
-			conversion_frame_count(sample_rate, impl->options.chunk_duration_ms, channels);
+		const size_t hop_frames = conversion_frame_count(sample_rate, impl->active_chunk_duration_ms, channels);
 		const size_t excess_frames = (impl->input.size() - maximum_samples + channels - 1U) / channels;
 		const size_t frames_to_discard =
 			hop_frames == 0U ? excess_frames
@@ -246,7 +257,8 @@ bool ConversionWorker::receive(obs_audio_data &audio, uint16_t channels)
 
 	if (!impl->playback_started) {
 		const size_t initial_buffer_frames =
-			conversion_frame_count(impl->sample_rate, impl->options.chunk_duration_ms, channels) * 2U;
+			conversion_frame_count(impl->sample_rate, impl->startup_chunk_duration_ms, channels) *
+			kInitialOutputBlocks;
 		if (impl->output.size() < initial_buffer_frames * channels)
 			return false;
 		impl->playback_started = true;
@@ -256,18 +268,20 @@ bool ConversionWorker::receive(obs_audio_data &audio, uint16_t channels)
 	const size_t sample_count = static_cast<size_t>(audio.frames) * channels;
 	if (impl->output.size() < sample_count) {
 		impl->playback_gain = 0.0F;
+		++impl->output_underflows;
 		return false;
 	}
 
 	for (uint32_t frame = 0U; frame < audio.frames; ++frame) {
 		impl->playback_gain = std::min(1.0F, impl->playback_gain + 1.0F / fade_frames);
 		for (uint16_t channel = 0U; channel < channels; ++channel) {
-			reinterpret_cast<float *>(audio.data[channel])[frame] =
-				impl->output.at(static_cast<size_t>(frame) * channels + channel) * impl->playback_gain;
+			const float converted = impl->output.at(static_cast<size_t>(frame) * channels + channel);
+			reinterpret_cast<float *>(audio.data[channel])[frame] = converted * impl->playback_gain;
 		}
 	}
 
 	impl->output.discard(sample_count);
+	impl->work_ready.notify_one();
 	return true;
 }
 
@@ -277,6 +291,7 @@ void ConversionWorker::Impl::run()
 	auto request = std::unique_ptr<rvc_audio_request_t>(new rvc_audio_request_t);
 	auto response = std::unique_ptr<rvc_audio_response_t>(new rvc_audio_response_t);
 	auto last_warning = std::chrono::steady_clock::time_point{};
+	uint64_t reported_underflows = 0U;
 	for (;;) {
 		std::vector<float> input_samples;
 		ConversionOptions conversion_options;
@@ -292,12 +307,15 @@ void ConversionWorker::Impl::run()
 			work_ready.wait(lock, [this] {
 				if (stopping || !configured || sample_rate == 0U || channels == 0U)
 					return stopping;
+
 				const size_t frames =
-					conversion_frame_count(sample_rate, options.chunk_duration_ms, channels);
+					conversion_frame_count(sample_rate, active_chunk_duration_ms, channels);
+
 				return frames > 0U &&
 				       input.size() >=
 					       (frames + frame_count_for_duration(sample_rate, kStreamLookaheadMs)) *
-						       channels;
+						       channels &&
+				       output.size() <= kOutputLowWaterBlocks * frames * channels;
 			});
 
 			if (stopping)
@@ -306,10 +324,11 @@ void ConversionWorker::Impl::run()
 			input_sample_rate = sample_rate;
 			input_channels = channels;
 			conversion_options = options;
+			conversion_options.initial_chunk_duration_ms = active_chunk_duration_ms;
 			input_generation = generation;
 			first_conversion = !has_completed_conversion;
-			const size_t frames =
-				conversion_frame_count(sample_rate, conversion_options.chunk_duration_ms, channels);
+			const size_t frames = conversion_frame_count(
+				sample_rate, conversion_options.initial_chunk_duration_ms, channels);
 
 			hop_frames = frames;
 			context_frames = frame_count_for_duration(sample_rate, kStreamHistoryMs);
@@ -378,16 +397,27 @@ void ConversionWorker::Impl::run()
 			continue;
 		}
 
+		uint64_t underflows = 0U;
 		{
 			std::lock_guard<std::mutex> lock(mutex);
 			if (stopping || generation != input_generation || sample_rate != input_sample_rate ||
 			    channels != input_channels)
 				continue;
+
 			const size_t maximum_output = 4U * hop_frames * input_channels;
 			if (output.size() + stitched.size() > maximum_output)
 				output.discard(output.size() + stitched.size() - maximum_output);
+
 			output.append(stitched);
 			has_completed_conversion = true;
+			underflows = output_underflows;
+		}
+
+		if (underflows != reported_underflows) {
+			blog(LOG_WARNING,
+			     "[obs-rvc] Output underflow detected (%llu total); audio was unavailable in time.",
+			     static_cast<unsigned long long>(underflows));
+			reported_underflows = underflows;
 		}
 
 		const double duration = static_cast<double>(hop_frames) / input_sample_rate;
@@ -396,7 +426,22 @@ void ConversionWorker::Impl::run()
 
 		blog(LOG_DEBUG, "[obs-rvc] Converted %.0f ms (RTF %.2f).", duration * 1000.0, realtime_factor);
 		const auto now = std::chrono::steady_clock::now();
-		if (realtime_factor > 1.0 && now - last_warning > std::chrono::seconds(5)) {
+		int32_t increased_duration = 0;
+		if (realtime_factor > 1.0 && !first_conversion) {
+			std::lock_guard<std::mutex> lock(mutex);
+			if (generation == input_generation && active_chunk_duration_ms < maximum_chunk_duration_ms) {
+				active_chunk_duration_ms =
+					std::min(maximum_chunk_duration_ms, active_chunk_duration_ms + 250);
+				increased_duration = active_chunk_duration_ms;
+			}
+		}
+
+		if (increased_duration > 0) {
+			blog(LOG_WARNING,
+			     "[obs-rvc] Inference slower than realtime (RTF %.2f); increasing conversion block to %d ms.",
+			     realtime_factor, increased_duration);
+			last_warning = now;
+		} else if (!first_conversion && realtime_factor > 1.0 && now - last_warning > std::chrono::seconds(5)) {
 			blog(LOG_WARNING,
 			     "[obs-rvc] Inference slower than realtime (RTF %.2f); use an accelerated worker or increase the block size.",
 			     realtime_factor);

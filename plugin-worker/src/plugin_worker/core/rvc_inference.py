@@ -12,10 +12,10 @@ from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsS
 from ..runtime import runtime
 from ..utils.audio_utils import encode_wav
 from ..utils.compatibility_utils import configure_torch
+from ..utils.inference_utils import bake_weight_norm
 from .rvc_inference_streaming import infer_window
 
 logger = logging.getLogger(__name__)
-
 
 class RVCInference:
     def __init__(self) -> None:
@@ -82,9 +82,14 @@ class RVCInference:
                 try:
                     vc: Any = self.vc_class()
                     vc.get_vc(key)
+                    removed_weight_norms = bake_weight_norm(vc.net_g)
+                    if removed_weight_norms:
+                        logger.info(
+                            "Optimized RVC generator for inference by baking %d weight-normalized layers.",
+                            removed_weight_norms,
+                        )
 
                     from rvc.modules.vc.utils import load_hubert
-
                     vc.hubert_model = load_hubert(vc.config, str(runtime.hubert_path.expanduser().resolve()))
                     logger.info("RVC inference device: %s", vc.config.device)
                 except Exception as exc:

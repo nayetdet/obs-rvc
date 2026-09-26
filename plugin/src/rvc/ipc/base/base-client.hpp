@@ -40,10 +40,12 @@ protected:
 		return true;
 	}
 
-	template<typename Request, typename Response>
-	BaseTransportStatus exchange(Client<Request, Response> &client, const Request &request, Response &response,
-				     uint32_t timeout_ms)
+	template<typename IpcRequest, typename IpcResponse, typename Request, typename Response>
+	BaseTransportStatus exchange(Client<IpcRequest, IpcResponse> &client, const Request &request,
+				     Response &response, uint32_t timeout_ms)
 	{
+		static_assert(sizeof(IpcRequest) == sizeof(Request), "Request payload layouts must match.");
+		static_assert(sizeof(IpcResponse) == sizeof(Response), "Response payload layouts must match.");
 		auto loaned_request = client.loan_uninit();
 		if (!loaned_request)
 			return BaseTransportStatus::TransportError;

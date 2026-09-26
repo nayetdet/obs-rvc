@@ -13,7 +13,7 @@ struct ConversionOptions {
 	std::string model, f0_method;
 	int32_t speaker, f0_up_key, filter_radius, resample_sr;
 	float rms_mix_rate, protect;
-	int32_t chunk_duration_ms;
+	int32_t initial_chunk_duration_ms, maximum_chunk_duration_ms;
 };
 
 class ConversionWorker {
