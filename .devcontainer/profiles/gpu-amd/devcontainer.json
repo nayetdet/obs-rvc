@@ -1,15 +1,18 @@
 {
-  "name": "obs-rvc",
+  "name": "devcontainer-gpu-amd",
   "image": "ghcr.io/nayetdet/obs-rvc:devcontainer",
   "remoteUser": "vscode",
-  "initializeCommand": "bash .devcontainer/scripts/init.sh",
-  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "initializeCommand": "bash .devcontainer/profiles/gpu-amd/scripts/init.sh",
+  "postCreateCommand": "bash .devcontainer/profiles/gpu-amd/scripts/post-create.sh",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "runArgs": [
     "--security-opt=label=disable",
     "--device=/dev/snd",
-    "--group-add=audio"
+    "--device=/dev/dri",
+    "--group-add=audio",
+    "--group-add=44",
+    "--group-add=109"
   ],
   "mounts": [
     "source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind",
@@ -22,6 +25,11 @@
   },
   "remoteEnv": {
     "PATH": "${containerEnv:PATH}:/home/vscode/.bun/bin"
+  },
+  "features": {
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+      "packages": "mesa-vulkan-drivers"
+    }
   },
   "customizations": {
     "vscode": {
