@@ -12,4 +12,5 @@ class SettingsRequestSchema(BaseRequestSchema):
         ("hubert_path", ctypes.c_char * Settings.max_path_bytes),
         ("rmvpe_path", ctypes.c_char * Settings.max_path_bytes),
         ("inference_threads", ctypes.c_uint32),
+        ("obs_reserved_threads", ctypes.c_uint32),
     ]

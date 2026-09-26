@@ -62,12 +62,13 @@ class RVCInference:
                     index_root=str(model_path.parent),
                 )
 
-                effective_threads = configure_torch(runtime.inference_threads)
+                effective_threads = configure_torch(runtime.inference_threads, runtime.obs_reserved_threads)
                 if effective_threads != runtime.inference_threads:
                     logger.info(
-                        "Limiting %d requested inference threads to %d physical CPU cores.",
+                        "Limiting %d requested RVC threads to %d after reserving %d threads for OBS.",
                         runtime.inference_threads,
                         effective_threads,
+                        runtime.obs_reserved_threads,
                     )
 
                 from rvc.modules.vc import modules as vc_modules

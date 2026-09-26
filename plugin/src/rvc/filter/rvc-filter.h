@@ -26,6 +26,7 @@ struct RvcFilterData {
 	int32_t initial_chunk_duration_ms = 500;
 	int32_t maximum_chunk_duration_ms = 2000;
 	int32_t inference_threads = 1;
+	int32_t obs_reserved_threads = 0;
 	bool configured = false;
 	std::unique_ptr<rvc::filter::ConversionWorker> conversion_worker;
 };

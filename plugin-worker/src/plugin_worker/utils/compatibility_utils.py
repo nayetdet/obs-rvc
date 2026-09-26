@@ -29,11 +29,11 @@ def physical_cpu_count() -> int:
     return max(1, len(cores) if cores else len(allowed_cpus))
 
 
-def configure_torch(num_threads: int = 1) -> int:
+def configure_torch(num_threads: int = 1, reserved_threads: int = 0) -> int:
     import torch
 
     physical_cores = physical_cpu_count()
-    worker_limit = physical_cores if physical_cores < 4 else physical_cores - 2
+    worker_limit = max(1, physical_cores - max(0, min(physical_cores - 1, int(reserved_threads))))
     effective_threads = min(max(1, min(256, int(num_threads))), worker_limit)
     os.environ["OMP_NUM_THREADS"] = str(effective_threads)
     os.environ["MKL_NUM_THREADS"] = str(effective_threads)

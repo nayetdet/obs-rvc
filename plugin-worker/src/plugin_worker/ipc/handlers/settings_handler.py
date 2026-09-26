@@ -32,6 +32,7 @@ class SettingsHandler(BaseHandler[SettingsRequestSchema, SettingsResponseSchema]
         runtime.hubert_path = Path(hubert_path)
         runtime.rmvpe_path = Path(rmvpe_path)
         runtime.inference_threads = max(1, min(256, int(request.inference_threads)))
+        runtime.obs_reserved_threads = max(0, min(256, int(request.obs_reserved_threads)))
 
         self.rvc.reset()
         return settings_success()

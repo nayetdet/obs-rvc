@@ -17,6 +17,7 @@ typedef struct rvc_settings_request {
 	char hubert_path[RVC_SETTINGS_MAX_PATH_BYTES];
 	char rmvpe_path[RVC_SETTINGS_MAX_PATH_BYTES];
 	uint32_t inference_threads;
+	uint32_t obs_reserved_threads;
 } rvc_settings_request_t;
 
 typedef struct rvc_settings_response {
@@ -26,11 +27,15 @@ typedef struct rvc_settings_response {
 } rvc_settings_response_t;
 
 #if defined(__cplusplus)
-static_assert(sizeof(rvc_settings_request_t) == 1156U, "Settings request layout must match Python.");
+static_assert(sizeof(rvc_settings_request_t) == 1160U, "Settings request layout must match Python.");
+static_assert(offsetof(rvc_settings_request_t, obs_reserved_threads) == 1156U,
+	      "Settings request layout must match Python.");
 static_assert(sizeof(rvc_settings_response_t) == 1032U, "Settings response layout must match Python.");
 static_assert(offsetof(rvc_settings_response_t, error_size) == 4U, "Settings response layout must match Python.");
 #else
-_Static_assert(sizeof(rvc_settings_request_t) == 1156U, "Settings request layout must match Python.");
+_Static_assert(sizeof(rvc_settings_request_t) == 1160U, "Settings request layout must match Python.");
+_Static_assert(offsetof(rvc_settings_request_t, obs_reserved_threads) == 1156U,
+	       "Settings request layout must match Python.");
 _Static_assert(sizeof(rvc_settings_response_t) == 1032U, "Settings response layout must match Python.");
 _Static_assert(offsetof(rvc_settings_response_t, error_size) == 4U, "Settings response layout must match Python.");
 #endif

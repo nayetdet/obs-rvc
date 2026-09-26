@@ -10,7 +10,7 @@
 #include <cstring>
 #include <vector>
 
-namespace rvc::filter {
+namespace rvc::utils {
 namespace {
 
 template<typename T> void write_le(std::vector<uint8_t> &buffer, size_t offset, T value)

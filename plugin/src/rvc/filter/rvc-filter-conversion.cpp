@@ -1,8 +1,8 @@
 #include "rvc-filter-conversion.hpp"
 #include "rvc-filter-stream.hpp"
 
+#include "utils/audio-utils.hpp"
 #include "utils/string-utils.hpp"
-#include "utils/wav-utils.hpp"
 
 #include <obs-module.h>
 
@@ -33,19 +33,12 @@ size_t frame_count_for_duration(uint32_t sample_rate, uint32_t duration_ms)
 	return static_cast<size_t>(sample_rate) * duration_ms / 1000U;
 }
 
-size_t maximum_request_frames(uint16_t channels)
-{
-	if (channels == 0U)
-		return 0U;
-	return (RVC_AUDIO_MAX_INPUT_BYTES - 44U) / (static_cast<size_t>(channels) * sizeof(int16_t));
-}
-
 size_t conversion_frame_count(uint32_t sample_rate, int32_t duration_ms, uint16_t channels)
 {
-	if (duration_ms <= 0)
+	if (duration_ms <= 0 || channels == 0U)
 		return 0U;
 	const size_t context = frame_count_for_duration(sample_rate, kStreamHistoryMs + kStreamLookaheadMs);
-	const size_t capacity = maximum_request_frames(channels);
+	const size_t capacity = (RVC_AUDIO_MAX_INPUT_BYTES - 44U) / (static_cast<size_t>(channels) * sizeof(int16_t));
 	if (capacity <= context)
 		return 0U;
 	return std::min(frame_count_for_duration(sample_rate, static_cast<uint32_t>(duration_ms)), capacity - context);
@@ -89,7 +82,8 @@ bool decode_to_input_format(const rvc_audio_response_t &response, uint32_t input
 	uint16_t output_channels = 0U;
 	std::vector<int16_t> decoded;
 	if (response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES ||
-	    !decode_wav(response.audio, response.audio_size, output_sample_rate, output_channels, decoded) ||
+	    !rvc::utils::decode_wav(response.audio, response.audio_size, output_sample_rate, output_channels,
+				    decoded) ||
 	    output_sample_rate == 0U || output_channels == 0U || decoded.empty())
 		return false;
 
@@ -348,7 +342,7 @@ void ConversionWorker::Impl::run()
 		obs_audio_data audio{};
 		make_planar_audio(input_samples, input_channels, planes, audio);
 		std::vector<uint8_t> wav;
-		if (!encode_wav(&audio, input_sample_rate, input_channels, wav)) {
+		if (!rvc::utils::encode_wav(&audio, input_sample_rate, input_channels, wav)) {
 			stream.reset();
 			blog(LOG_ERROR, "[obs-rvc] Unable to encode audio for conversion.");
 			continue;
