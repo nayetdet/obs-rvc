@@ -1,9 +1,9 @@
 {
-  "name": "devcontainer-cpu",
+  "name": "obs-rvc-cpu",
   "image": "ghcr.io/nayetdet/obs-rvc:devcontainer",
   "remoteUser": "vscode",
-  "initializeCommand": "bash .devcontainer/profiles/cpu/scripts/init.sh",
-  "postCreateCommand": "bash .devcontainer/profiles/cpu/scripts/post-create.sh",
+  "initializeCommand": "bash .devcontainer/cpu/scripts/init.sh",
+  "postCreateCommand": "bash .devcontainer/cpu/scripts/post-create.sh",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "runArgs": [

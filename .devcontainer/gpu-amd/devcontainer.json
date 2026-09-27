@@ -1,9 +1,9 @@
 {
-  "name": "devcontainer-gpu-amd",
+  "name": "obs-rvc-gpu-amd",
   "image": "ghcr.io/nayetdet/obs-rvc:devcontainer",
   "remoteUser": "vscode",
-  "initializeCommand": "bash .devcontainer/profiles/gpu-amd/scripts/init.sh",
-  "postCreateCommand": "bash .devcontainer/profiles/gpu-amd/scripts/post-create.sh",
+  "initializeCommand": "bash .devcontainer/gpu-amd/scripts/init.sh",
+  "postCreateCommand": "bash .devcontainer/gpu-amd/scripts/post-create.sh",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "runArgs": [
