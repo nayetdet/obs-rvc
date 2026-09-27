@@ -20,6 +20,7 @@ namespace rvc::filter {
 namespace {
 constexpr uint32_t kWarmupConversionTimeoutMs = 180000U;
 constexpr uint32_t kConversionTimeoutMs = 60000U;
+constexpr size_t kInitialOutputBlocks = 2U;
 
 std::mutex workers_mutex;
 std::set<ConversionWorker *> workers;
@@ -246,7 +247,8 @@ bool ConversionWorker::receive(const obs_audio_data &audio, uint16_t channels)
 
 		if (!impl->playback_started) {
 			const size_t initial_buffer_frames =
-				conversion_frame_count(impl->sample_rate, impl->startup_chunk_duration_ms);
+				conversion_frame_count(impl->sample_rate, impl->startup_chunk_duration_ms) *
+				kInitialOutputBlocks;
 			if (impl->output.size() < initial_buffer_frames * channels)
 				return false;
 			impl->playback_started = true;

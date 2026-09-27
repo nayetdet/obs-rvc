@@ -57,6 +57,7 @@ bool cpu_thread_allocation_modified(obs_properties_t *properties, obs_property_t
 				    total_threads - obs_reserved_threads, 1);
 	obs_property_int_set_limits(obs_properties_get(properties, kObsReservedThreads), 0,
 				    total_threads - inference_threads, 1);
+
 	return true;
 }
 
@@ -80,12 +81,15 @@ void rvc_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, kIndexRate, 0.75);
 	obs_data_set_default_int(settings, kChunkDurationMs, 250);
 	obs_data_set_default_int(settings, kInitialChunkDurationMs, 250);
-	obs_data_set_default_int(settings, kMaximumChunkDurationMs, 2000);
+	obs_data_set_default_int(settings, kMaximumChunkDurationMs, 1500);
+
 	const int64_t total_threads = rvc::utils::available_cpu_count();
 	const int64_t default_obs_threads = total_threads >= 4 ? std::max<int64_t>(1, total_threads / 8) : 0;
 	obs_data_set_default_int(settings, kObsReservedThreads, default_obs_threads);
+
 	const int64_t reserved_threads =
 		std::clamp<int64_t>(obs_data_get_int(settings, kObsReservedThreads), 0, total_threads - 1);
+
 	obs_data_set_default_int(settings, kInferenceThreads,
 				 std::max<int64_t>(1, std::min<int64_t>(8, total_threads - reserved_threads)));
 }

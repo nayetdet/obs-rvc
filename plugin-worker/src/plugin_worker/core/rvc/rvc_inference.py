@@ -31,7 +31,6 @@ class RVCInference:
         self.models: dict[str, Any] = {}
         self.model_errors: dict[str, str] = {}
         self.model_locks: dict[str, threading.Lock] = {}
-        self.realtime_pitch_warning_models: set[str] = set()
         self.hubert_models: dict[tuple[str, str, bool], Runtime.Hubert] = {}
         self.indices: dict[tuple[str, str], tuple[Any, np.ndarray]] = {}
         self.lock = threading.Lock()
@@ -157,12 +156,6 @@ class RVCInference:
             while len(vc.streams) > 16:
                 vc.streams.popitem(last=False)
 
-            if str(vc.config.device) == "cpu" and options.f0_method != "pm":
-                if key not in self.realtime_pitch_warning_models:
-                    logger.warning("Using PM pitch tracking for realtime CPU conversion.")
-                    self.realtime_pitch_warning_models.add(key)
-                options = options.model_copy(update={"f0_method": "pm"})
-
             output, target_sr, timings = infer_window(vc, stream, audio, sample_rate, options, index)
             logger.debug(
                 "RVC timings ms: input_resample=%.1f filter=%.1f f0=%.1f hubert=%.1f generator=%.1f rms=%.1f output_resample=%.1f",
@@ -190,7 +183,6 @@ class RVCInference:
             self.models.clear()
             self.model_errors.clear()
             self.model_locks.clear()
-            self.realtime_pitch_warning_models.clear()
             self.hubert_models.clear()
             self.indices.clear()
             self.vc_class = None
