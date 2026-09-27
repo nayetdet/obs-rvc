@@ -41,6 +41,7 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
                 resample_sr=request.resample_sr,
                 rms_mix_rate=request.rms_mix_rate,
                 protect=request.protect,
+                index_rate=request.index_rate,
             )
 
             output: bytes

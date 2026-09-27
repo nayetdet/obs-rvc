@@ -47,7 +47,7 @@ def infer_window(vc: Any, audio: bytes, options: RVCInferenceOptionsSchema) -> t
         speaker = torch.tensor([options.speaker], device=pipeline.device, dtype=torch.long)
         result = pipeline.vc(
             vc.hubert_model, vc.net_g, speaker, samples, pitch, pitchf, times,
-            None, None, 0.0, vc.version, options.protect,
+            getattr(vc, "index_path", None), None, options.index_rate, vc.version, options.protect,
         )
 
     if options.rms_mix_rate < 1.0:

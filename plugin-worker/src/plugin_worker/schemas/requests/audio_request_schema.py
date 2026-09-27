@@ -17,5 +17,6 @@ class AudioRequestSchema(BaseRequestSchema):
         ("resample_sr", ctypes.c_int32),
         ("rms_mix_rate", ctypes.c_float),
         ("protect", ctypes.c_float),
+        ("index_rate", ctypes.c_float),
         ("audio", ctypes.c_uint8 * Settings.max_audio_bytes),
     ]

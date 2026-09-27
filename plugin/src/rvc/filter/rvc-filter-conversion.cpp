@@ -362,6 +362,7 @@ void ConversionWorker::Impl::run()
 									  : static_cast<int32_t>(input_sample_rate);
 		request->rms_mix_rate = conversion_options.rms_mix_rate;
 		request->protect = conversion_options.protect;
+		request->index_rate = conversion_options.index_rate;
 		std::memcpy(request->audio, wav.data(), wav.size());
 
 		const auto started_at = std::chrono::steady_clock::now();

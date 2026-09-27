@@ -12,7 +12,7 @@ namespace rvc::filter {
 struct ConversionOptions {
 	std::string model, f0_method;
 	int32_t speaker, f0_up_key, filter_radius, resample_sr;
-	float rms_mix_rate, protect;
+	float rms_mix_rate, protect, index_rate;
 	int32_t initial_chunk_duration_ms, maximum_chunk_duration_ms;
 };
 

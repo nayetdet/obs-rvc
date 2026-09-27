@@ -82,7 +82,8 @@ class RVCInference:
                 logger.info("Loading RVC model: %s", model_path)
                 try:
                     vc: Any = self.vc_class()
-                    vc.get_vc(key)
+                    _, _, index_path = vc.get_vc(key)
+                    vc.index_path = index_path
                     removed_weight_norms = bake_weight_norm(vc.net_g)
                     if removed_weight_norms:
                         logger.info(

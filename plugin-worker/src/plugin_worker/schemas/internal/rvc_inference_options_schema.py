@@ -13,3 +13,4 @@ class RVCInferenceOptionsSchema(BaseModel):
     resample_sr: int = Field(default=0, ge=0, le=192000)
     rms_mix_rate: float = Field(default=0.25, ge=0.0, le=1.0)
     protect: float = Field(default=0.33, ge=0.0, le=0.5)
+    index_rate: float = Field(default=1.0, ge=0.0, le=1.0)
