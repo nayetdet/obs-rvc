@@ -76,9 +76,9 @@ void rvc_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, kF0UpKey, 6);
 	obs_data_set_default_int(settings, kFilterRadius, 3);
 	obs_data_set_default_int(settings, kResampleSr, 0);
-	obs_data_set_default_double(settings, kRmsMixRate, 0.25);
+	obs_data_set_default_double(settings, kRmsMixRate, 1.0);
 	obs_data_set_default_double(settings, kProtect, 0.33);
-	obs_data_set_default_double(settings, kIndexRate, 1.0);
+	obs_data_set_default_double(settings, kIndexRate, 0.0);
 	obs_data_set_default_int(settings, kChunkDurationMs, 500);
 	obs_data_set_default_int(settings, kInitialChunkDurationMs, 500);
 	obs_data_set_default_int(settings, kMaximumChunkDurationMs, 2000);

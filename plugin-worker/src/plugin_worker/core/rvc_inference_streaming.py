@@ -3,20 +3,20 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import soxr
 
 from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
-from ..utils.audio_utils import decode_wav
 
 
-def infer_window(vc: Any, audio: bytes, options: RVCInferenceOptionsSchema) -> tuple[np.ndarray, int]:
-    import librosa
+def infer_window(
+    vc: Any, audio: np.ndarray, rate: int, options: RVCInferenceOptionsSchema
+) -> tuple[np.ndarray, int]:
     import torch
     from scipy.signal import filtfilt
     from rvc.modules.vc.pipeline import bh, ah, change_rms, cache_harvest_f0, input_audio_path2wav
 
-    samples, rate = decode_wav(audio)
-    if rate != 16000:
-        samples = librosa.resample(samples, orig_sr=rate, target_sr=16000)
+    samples = np.asarray(audio, dtype=np.float32)
+    samples = vc.input_resampler.resample(samples, rate, 16000)
 
     samples = np.asarray(filtfilt(bh, ah, samples), dtype=np.float32)
     peak = float(np.max(np.abs(samples)))
@@ -42,10 +42,14 @@ def infer_window(vc: Any, audio: bytes, options: RVCInferenceOptionsSchema) -> t
             pitch = torch.as_tensor(coarse[:length], device=pipeline.device).unsqueeze(0).long()
             pitchf = torch.as_tensor(fine[:length], device=pipeline.device).unsqueeze(0).float()
 
-        speaker = torch.tensor([options.speaker], device=pipeline.device, dtype=torch.long)
+        speaker = vc.speakers.get(options.speaker)
+        if speaker is None:
+            speaker = torch.tensor([options.speaker], device=pipeline.device, dtype=torch.long)
+            vc.speakers[options.speaker] = speaker
+
         result = pipeline.vc(
             vc.hubert_model, vc.net_g, speaker, samples, pitch, pitchf, times,
-            getattr(vc, "index_path", None), None, options.index_rate, vc.version, options.protect,
+            vc.index, vc.big_npy, options.index_rate, vc.version, options.protect,
         )
 
     if options.rms_mix_rate < 1.0:
@@ -53,5 +57,5 @@ def infer_window(vc: Any, audio: bytes, options: RVCInferenceOptionsSchema) -> t
 
     target_rate = options.resample_sr if options.resample_sr >= 16000 else vc.tgt_sr
     if target_rate != vc.tgt_sr:
-        result = librosa.resample(result, orig_sr=vc.tgt_sr, target_sr=target_rate)
+        result = soxr.resample(result, vc.tgt_sr, target_rate, quality="HQ")
     return np.asarray(result, dtype=np.float32), int(target_rate)

@@ -43,9 +43,14 @@ void AudioSampleQueue::copy_front(std::vector<float> &destination, size_t reques
 		std::memcpy(destination.data() + first, storage.data(), (requested - first) * sizeof(float));
 }
 
-float AudioSampleQueue::at(size_t index) const
+const float *AudioSampleQueue::front_data() const
 {
-	return storage[(head + index) % storage.size()];
+	return storage.data() + head;
+}
+
+size_t AudioSampleQueue::front_size() const
+{
+	return std::min(count, storage.size() - head);
 }
 
 void AudioSampleQueue::discard(size_t requested)

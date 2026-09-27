@@ -6,14 +6,16 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ..exceptions.rvc_inference_error import RVCInferenceError
 from ..exceptions.rvc_inference_model_not_found import RVCInferenceModelNotFoundError
 from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
 from ..runtime import runtime
-from ..utils.audio_utils import encode_wav
 from ..utils.compatibility_utils import configure_torch
 from ..utils.inference_utils import bake_weight_norm
 from .rvc_inference_streaming import infer_window
+from .rvc_inference_streaming_resampler import StreamingResampler
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +30,12 @@ class RVCInference:
 
     def convert(
         self,
-        audio: bytes,
+        audio: Any,
+        sample_rate: int,
         model: str | None,
         options: RVCInferenceOptionsSchema,
-    ) -> tuple[bytes, int]:
-        if not audio:
+    ) -> tuple[np.ndarray, int]:
+        if np.asarray(audio).size == 0 or sample_rate <= 0:
             raise RVCInferenceError()
 
         if runtime.hubert_path is None or runtime.rmvpe_path is None:
@@ -84,6 +87,10 @@ class RVCInference:
                     vc: Any = self.vc_class()
                     _, _, index_path = vc.get_vc(key)
                     vc.index_path = index_path
+                    vc.index = None
+                    vc.big_npy = None
+                    vc.speakers = {}
+                    vc.input_resampler = StreamingResampler()
                     removed_weight_norms = bake_weight_norm(vc.net_g)
                     if removed_weight_norms:
                         logger.info(
@@ -101,6 +108,16 @@ class RVCInference:
                     raise RVCInferenceError(message) from exc
                 self.models[key] = vc
 
+            vc: Any = self.models[key]
+            if vc.index is None and vc.index_path and options.index_rate > 0.0:
+                try:
+                    import faiss
+
+                    vc.index = faiss.read_index(vc.index_path)
+                    vc.big_npy = vc.index.reconstruct_n(0, vc.index.ntotal)
+                except Exception:
+                    logger.warning("Unable to load RVC index: %s", vc.index_path, exc_info=True)
+
             model_lock: threading.Lock = self.model_locks.setdefault(key, threading.Lock())
 
         with model_lock:
@@ -110,8 +127,8 @@ class RVCInference:
                     logger.warning("Using PM pitch tracking for realtime CPU conversion.")
                     self.realtime_pitch_warning_models.add(key)
                 options = options.model_copy(update={"f0_method": "pm"})
-            output, target_sr = infer_window(vc, audio, options)
-            return encode_wav(output, target_sr), target_sr
+            output, target_sr = infer_window(vc, audio, sample_rate, options)
+            return output, target_sr
 
     def reset(self) -> None:
         with self.lock:

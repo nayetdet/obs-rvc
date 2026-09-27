@@ -1,13 +1,11 @@
 #include "rvc-filter-conversion.hpp"
 #include "rvc-filter-stream.hpp"
 
-#include "utils/audio-utils.hpp"
 #include "utils/string-utils.hpp"
 
 #include <obs-module.h>
 
 #include <algorithm>
-#include <array>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
@@ -33,12 +31,12 @@ size_t frame_count_for_duration(uint32_t sample_rate, uint32_t duration_ms)
 	return static_cast<size_t>(sample_rate) * duration_ms / 1000U;
 }
 
-size_t conversion_frame_count(uint32_t sample_rate, int32_t duration_ms, uint16_t channels)
+size_t conversion_frame_count(uint32_t sample_rate, int32_t duration_ms, uint16_t)
 {
-	if (duration_ms <= 0 || channels == 0U)
+	if (duration_ms <= 0)
 		return 0U;
 	const size_t context = frame_count_for_duration(sample_rate, kStreamHistoryMs + kStreamLookaheadMs);
-	const size_t capacity = (RVC_AUDIO_MAX_INPUT_BYTES - 44U) / (static_cast<size_t>(channels) * sizeof(int16_t));
+	const size_t capacity = RVC_AUDIO_MAX_INPUT_BYTES / sizeof(float);
 	if (capacity <= context)
 		return 0U;
 	return std::min(frame_count_for_duration(sample_rate, static_cast<uint32_t>(duration_ms)), capacity - context);
@@ -63,33 +61,15 @@ bool copy_audio_to_mono(const obs_audio_data &audio, uint16_t channels, std::vec
 	return true;
 }
 
-void make_planar_audio(const std::vector<float> &interleaved, uint16_t channels,
-		       std::array<std::vector<float>, MAX_AV_PLANES> &planes, obs_audio_data &audio)
-{
-	const uint32_t frames = static_cast<uint32_t>(interleaved.size() / channels);
-	for (uint16_t channel = 0U; channel < channels; ++channel) {
-		planes[channel].resize(frames);
-		for (uint32_t frame = 0U; frame < frames; ++frame)
-			planes[channel][frame] = interleaved[static_cast<size_t>(frame) * channels + channel];
-		audio.data[channel] = reinterpret_cast<uint8_t *>(planes[channel].data());
-	}
-
-	audio.frames = frames;
-}
-
 bool decode_to_input_format(const rvc_audio_response_t &response, uint32_t input_sample_rate, uint16_t input_channels,
 			    uint32_t input_frames, std::vector<float> &output)
 {
-	uint32_t output_sample_rate = 0U;
-	uint16_t output_channels = 0U;
-	std::vector<int16_t> decoded;
-	if (response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES ||
-	    !rvc::utils::decode_wav(response.audio, response.audio_size, output_sample_rate, output_channels,
-				    decoded) ||
-	    output_sample_rate == 0U || output_channels == 0U || decoded.empty())
+	if (response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES || response.audio_size == 0U ||
+	    response.audio_size % sizeof(float) != 0U || response.sample_rate == 0U)
 		return false;
 
-	const size_t decoded_frames = decoded.size() / output_channels;
+	const uint32_t output_sample_rate = response.sample_rate;
+	const size_t decoded_frames = response.audio_size / sizeof(float);
 	if (decoded_frames == 0U)
 		return false;
 
@@ -102,12 +82,13 @@ bool decode_to_input_format(const rvc_audio_response_t &response, uint32_t input
 		const size_t first = std::min(static_cast<size_t>(position), decoded_frames - 1U);
 		const size_t second = std::min(first + 1U, decoded_frames - 1U);
 		const float fraction = static_cast<float>(position - first);
+		float first_sample = 0.0F;
+		float second_sample = 0.0F;
+		std::memcpy(&first_sample, response.audio + first * sizeof(float), sizeof(float));
+		std::memcpy(&second_sample, response.audio + second * sizeof(float), sizeof(float));
 		for (uint16_t channel = 0U; channel < input_channels; ++channel) {
-			const uint16_t source_channel = std::min<uint16_t>(channel, output_channels - 1U);
-			const float a =
-				static_cast<float>(decoded[first * output_channels + source_channel]) / 32768.0F;
-			const float b =
-				static_cast<float>(decoded[second * output_channels + source_channel]) / 32768.0F;
+			const float a = std::isfinite(first_sample) ? first_sample : 0.0F;
+			const float b = std::isfinite(second_sample) ? second_sample : 0.0F;
 			output[static_cast<size_t>(frame) * input_channels + channel] = a + (b - a) * fraction;
 		}
 	}
@@ -267,15 +248,20 @@ bool ConversionWorker::receive(obs_audio_data &audio, uint16_t channels)
 		return false;
 	}
 
-	for (uint32_t frame = 0U; frame < audio.frames; ++frame) {
-		impl->playback_gain = std::min(1.0F, impl->playback_gain + 1.0F / fade_frames);
-		for (uint16_t channel = 0U; channel < channels; ++channel) {
-			const float converted = impl->output.at(static_cast<size_t>(frame) * channels + channel);
-			reinterpret_cast<float *>(audio.data[channel])[frame] = converted * impl->playback_gain;
+	size_t remaining = sample_count;
+	uint32_t frame = 0U;
+	while (remaining > 0U) {
+		const size_t contiguous = std::min(remaining, impl->output.front_size());
+		const float *converted = impl->output.front_data();
+		for (size_t sample = 0U; sample < contiguous; sample += channels, ++frame) {
+			impl->playback_gain = std::min(1.0F, impl->playback_gain + 1.0F / fade_frames);
+			for (uint16_t channel = 0U; channel < channels; ++channel)
+				reinterpret_cast<float *>(audio.data[channel])[frame] =
+					converted[sample + channel] * impl->playback_gain;
 		}
+		impl->output.discard(contiguous);
+		remaining -= contiguous;
 	}
-
-	impl->output.discard(sample_count);
 	impl->work_ready.notify_one();
 	return true;
 }
@@ -290,8 +276,6 @@ void ConversionWorker::Impl::run()
 	std::vector<float> input_samples;
 	std::vector<float> converted;
 	std::vector<float> stitched;
-	std::vector<uint8_t> wav;
-	std::array<std::vector<float>, MAX_AV_PLANES> planes;
 	for (;;) {
 		ConversionOptions conversion_options;
 		uint32_t input_sample_rate = 0U;
@@ -341,15 +325,8 @@ void ConversionWorker::Impl::run()
 		}
 
 		input_samples = stream.window(input_samples, hop_frames, context_frames, 1U);
-		obs_audio_data audio{};
-		make_planar_audio(input_samples, 1U, planes, audio);
-		if (!rvc::utils::encode_wav(&audio, input_sample_rate, 1U, wav)) {
-			stream.reset();
-			blog(LOG_ERROR, "[obs-rvc] Unable to encode audio for conversion.");
-			continue;
-		}
-
-		request->audio_size = static_cast<uint32_t>(wav.size());
+		request->audio_size = static_cast<uint32_t>(input_samples.size() * sizeof(float));
+		request->sample_rate = input_sample_rate;
 		if (!utils::copy_string(request->model, conversion_options.model.c_str()) ||
 		    !utils::copy_string(request->f0_method, conversion_options.f0_method.c_str())) {
 			blog(LOG_ERROR, "[obs-rvc] Conversion settings exceed IPC limits.");
@@ -364,7 +341,7 @@ void ConversionWorker::Impl::run()
 		request->rms_mix_rate = conversion_options.rms_mix_rate;
 		request->protect = conversion_options.protect;
 		request->index_rate = conversion_options.index_rate;
-		std::memcpy(request->audio, wav.data(), wav.size());
+		std::memcpy(request->audio, input_samples.data(), request->audio_size);
 
 		const auto started_at = std::chrono::steady_clock::now();
 		const uint32_t timeout_ms = first_conversion ? kWarmupConversionTimeoutMs : kConversionTimeoutMs;

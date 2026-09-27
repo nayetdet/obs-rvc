@@ -15,7 +15,8 @@ public:
 	void clear();
 	void append(const std::vector<float> &values);
 	void copy_front(std::vector<float> &destination, size_t requested) const;
-	float at(size_t index) const;
+	const float *front_data() const;
+	size_t front_size() const;
 	void discard(size_t requested);
 
 private:

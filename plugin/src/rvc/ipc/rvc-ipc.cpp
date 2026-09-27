@@ -66,7 +66,8 @@ extern "C" enum rvc_ipc_status rvc_ipc_convert(rvc_ipc_t *context, const rvc_aud
 					       rvc_audio_response_t *response, uint32_t timeout_ms)
 {
 	if (context == nullptr || request == nullptr || response == nullptr || timeout_ms == 0U ||
-	    request->audio_size > RVC_AUDIO_MAX_INPUT_BYTES)
+	    request->audio_size == 0U || request->audio_size > RVC_AUDIO_MAX_INPUT_BYTES ||
+	    request->audio_size % sizeof(float) != 0U || request->sample_rate == 0U)
 		return RVC_IPC_STATUS_INVALID_ARGUMENT;
 
 	return to_ipc_status(context->audio->convert(*request, *response, timeout_ms));

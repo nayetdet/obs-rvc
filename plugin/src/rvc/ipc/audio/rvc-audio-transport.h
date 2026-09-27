@@ -5,8 +5,8 @@
 
 #define RVC_AUDIO_MAX_MODEL_BYTES 128U
 #define RVC_AUDIO_MAX_ERROR_BYTES 1024U
-#define RVC_AUDIO_MAX_INPUT_BYTES (1024U * 1024U)
-#define RVC_AUDIO_MAX_OUTPUT_BYTES (1024U * 1024U)
+#define RVC_AUDIO_MAX_INPUT_BYTES (2U * 1024U * 1024U)
+#define RVC_AUDIO_MAX_OUTPUT_BYTES (2U * 1024U * 1024U)
 
 enum rvc_audio_response_status {
 	RVC_AUDIO_RESPONSE_OK = 0,
@@ -15,6 +15,7 @@ enum rvc_audio_response_status {
 
 typedef struct rvc_audio_request {
 	uint32_t audio_size;
+	uint32_t sample_rate;
 	char model[RVC_AUDIO_MAX_MODEL_BYTES];
 	int32_t speaker;
 	int32_t f0_up_key;
@@ -37,13 +38,13 @@ typedef struct rvc_audio_response {
 } rvc_audio_response_t;
 
 #if defined(__cplusplus)
-static_assert(sizeof(rvc_audio_request_t) == 1048744U, "Audio request layout must match Python.");
-static_assert(offsetof(rvc_audio_request_t, audio) == 168U, "Audio request layout must match Python.");
-static_assert(sizeof(rvc_audio_response_t) == 1049616U, "Audio response layout must match Python.");
+static_assert(sizeof(rvc_audio_request_t) == 2097324U, "Audio request layout must match Python.");
+static_assert(offsetof(rvc_audio_request_t, audio) == 172U, "Audio request layout must match Python.");
+static_assert(sizeof(rvc_audio_response_t) == 2098192U, "Audio response layout must match Python.");
 static_assert(offsetof(rvc_audio_response_t, audio) == 1040U, "Audio response layout must match Python.");
 #else
-_Static_assert(sizeof(rvc_audio_request_t) == 1048744U, "Audio request layout must match Python.");
-_Static_assert(offsetof(rvc_audio_request_t, audio) == 168U, "Audio request layout must match Python.");
-_Static_assert(sizeof(rvc_audio_response_t) == 1049616U, "Audio response layout must match Python.");
+_Static_assert(sizeof(rvc_audio_request_t) == 2097324U, "Audio request layout must match Python.");
+_Static_assert(offsetof(rvc_audio_request_t, audio) == 172U, "Audio request layout must match Python.");
+_Static_assert(sizeof(rvc_audio_response_t) == 2098192U, "Audio response layout must match Python.");
 _Static_assert(offsetof(rvc_audio_response_t, audio) == 1040U, "Audio response layout must match Python.");
 #endif

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 from pydantic import ValidationError
 
 from ...core.rvc_inference import RVCInference
@@ -32,6 +33,9 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
         if request.audio_size == 0 or request.audio_size > Settings.max_audio_bytes:
             return audio_error("Audio size is invalid.")
 
+        if request.sample_rate == 0 or request.audio_size % 4 != 0:
+            return audio_error("Audio format is invalid.")
+
         try:
             options: RVCInferenceOptionsSchema = RVCInferenceOptionsSchema(
                 speaker=request.speaker,
@@ -44,15 +48,16 @@ class RVCHandler(BaseHandler[AudioRequestSchema, AudioResponseSchema]):
                 index_rate=request.index_rate,
             )
 
-            output: bytes
+            output: np.ndarray
             sample_rate: int
             output, sample_rate = self.rvc.convert(
-                bytes(request.audio[: request.audio_size]),
+                np.ctypeslib.as_array(request.audio)[: request.audio_size].view("<f4"),
+                request.sample_rate,
                 decode_c_string(request.model) or None,
                 options,
             )
 
-            if len(output) > Settings.max_output_bytes:
+            if output.nbytes > Settings.max_output_bytes:
                 return audio_error("Converted audio exceeds the IPC buffer.")
             self.last_unexpected_error = None
             return audio_success(output, sample_rate)

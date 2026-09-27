@@ -39,7 +39,7 @@ core::BaseTransportStatus RvcAudioClient::convert(const rvc_audio_request_t &req
 	if (status != core::BaseTransportStatus::Ok)
 		return status;
 
-	if (response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES)
+	if (response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES || response.audio_size % sizeof(float) != 0U)
 		return core::BaseTransportStatus::TransportError;
 
 	return response.status == RVC_AUDIO_RESPONSE_OK ? core::BaseTransportStatus::Ok

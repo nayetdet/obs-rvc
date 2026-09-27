@@ -5,6 +5,8 @@ from ..schemas.responses.audio_response_schema import AudioResponseSchema
 from ..schemas.responses.settings_response_schema import SettingsResponseSchema
 from ..settings import Settings
 
+import numpy as np
+
 
 def audio_error(message: str) -> AudioResponseSchema:
     response = AudioResponseSchema()
@@ -15,12 +17,13 @@ def audio_error(message: str) -> AudioResponseSchema:
     return response
 
 
-def audio_success(audio: bytes, sample_rate: int) -> AudioResponseSchema:
+def audio_success(audio: np.ndarray, sample_rate: int) -> AudioResponseSchema:
     response = AudioResponseSchema()
     response.status = IPCResponseStatusEnum.OK
-    response.audio_size = len(audio)
+    pcm = np.ascontiguousarray(audio, dtype="<f4").tobytes()
+    response.audio_size = len(pcm)
     response.sample_rate = sample_rate
-    response.audio[: len(audio)] = audio
+    response.audio[: len(pcm)] = pcm
     return response
 
 
