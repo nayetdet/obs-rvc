@@ -76,6 +76,7 @@ class RVCEndpoint(BaseEndpoint[AudioRequestSchema, AudioResponseSchema]):
                 resample_sr=request.resample_sr,
                 rms_mix_rate=request.rms_mix_rate,
                 protect=request.protect,
+                index_rate=request.index_rate,
             )
 
             output: np.ndarray
@@ -86,6 +87,7 @@ class RVCEndpoint(BaseEndpoint[AudioRequestSchema, AudioResponseSchema]):
                 request.stream_id,
                 request.stream_generation,
                 decode_c_string(request.model) or None,
+                decode_c_string(request.index_path) or None,
                 options,
             )
 

@@ -9,10 +9,13 @@ namespace rvc::filter {
 ModelValidation validate_models(obs_data_t *settings)
 {
 	const char *model = obs_data_get_string(settings, kModel);
+	const char *index = obs_data_get_string(settings, kIndexPath);
 	const char *hubert = obs_data_get_string(settings, kHubertPath);
 	const char *rmvpe = obs_data_get_string(settings, kRmvpePath);
 	if (!rvc::utils::is_regular_file(model, ".pth"))
 		return {false, "Choose an existing RVC model file (.pth)."};
+	if (index != nullptr && index[0] != '\0' && !rvc::utils::is_regular_file(index, ".index"))
+		return {false, "Choose an existing RVC index file (.index), or leave it empty."};
 	if (!rvc::utils::is_regular_file(hubert, ".pt"))
 		return {false, "Choose an existing HuBERT model file (.pt)."};
 	if (!rvc::utils::is_regular_file(rmvpe, nullptr, "rmvpe.pt"))

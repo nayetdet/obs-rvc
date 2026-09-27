@@ -9,7 +9,7 @@ from ...runtime import Runtime
 
 
 def infer_window(
-    vc: Any, stream: Any, audio: np.ndarray, rate: int, options: Runtime.Options
+    vc: Any, stream: Any, audio: np.ndarray, rate: int, options: Runtime.Options, index: tuple[Any, np.ndarray] | None
 ) -> tuple[np.ndarray, int, dict[str, float]]:
     import torch
     from rvc.modules.vc.pipeline import change_rms, cache_harvest_f0, input_audio_path2wav
@@ -62,7 +62,7 @@ def infer_window(
         features = extract_hubert_features(vc, samples, torch)
         timings["hubert"] = perf_counter() - started
         started = perf_counter()
-        result = synthesize(vc, features, speaker, samples, pitch, pitchf, options, torch)
+        result = synthesize(vc, features, speaker, samples, pitch, pitchf, options, index, torch)
         timings["generator"] = perf_counter() - started
 
     started = perf_counter()
@@ -104,6 +104,7 @@ def synthesize(
     pitch: Any,
     pitchf: Any,
     options: Runtime.Options,
+    index: tuple[Any, np.ndarray] | None,
     torch: Any,
 ) -> np.ndarray:
     import torch.nn.functional as functional
@@ -111,6 +112,19 @@ def synthesize(
     protect_unvoiced = options.protect < 0.5 and pitch is not None and pitchf is not None
     if protect_unvoiced:
         original_features = features.clone()
+
+    if index is not None and options.index_rate > 0.0:
+        search, vectors = index
+        source = features[0].cpu().numpy().astype("float32", copy=vc.config.is_half)
+        scores, indices = search.search(source, k=min(8, search.ntotal))
+        weights = np.square(1.0 / np.maximum(scores, np.finfo(scores.dtype).eps))
+        weights /= weights.sum(axis=1, keepdims=True)
+        retrieved = np.sum(vectors[indices] * np.expand_dims(weights, axis=2), axis=1)
+        if vc.config.is_half:
+            retrieved = retrieved.astype("float16")
+        features = torch.from_numpy(retrieved).unsqueeze(0).to(vc.pipeline.device) * options.index_rate + (
+            1.0 - options.index_rate
+        ) * features
 
     features = functional.interpolate(features.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
     if protect_unvoiced:

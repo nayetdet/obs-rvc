@@ -347,11 +347,13 @@ void ConversionWorker::Impl::run()
 			pcm[sample] =
 				static_cast<int16_t>(std::clamp(std::floor(value * 32768.0F), -32768.0F, 32767.0F));
 		}
+
 		request->audio_size = static_cast<uint32_t>(pcm.size() * sizeof(int16_t));
 		request->sample_rate = input_sample_rate;
 		request->stream_id = stream_id;
 		request->stream_generation = input_generation;
 		if (!utils::copy_string(request->model, conversion_options.model.c_str()) ||
+		    !utils::copy_string(request->index_path, conversion_options.index_path.c_str()) ||
 		    !utils::copy_string(request->f0_method, conversion_options.f0_method.c_str())) {
 			blog(LOG_ERROR, "[obs-rvc] Conversion settings exceed IPC limits.");
 			continue;
@@ -364,6 +366,7 @@ void ConversionWorker::Impl::run()
 									  : static_cast<int32_t>(input_sample_rate);
 		request->rms_mix_rate = conversion_options.rms_mix_rate;
 		request->protect = conversion_options.protect;
+		request->index_rate = conversion_options.index_rate;
 		std::memcpy(request->audio, pcm.data(), request->audio_size);
 
 		const auto started_at = std::chrono::steady_clock::now();

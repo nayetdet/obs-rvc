@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #define RVC_AUDIO_MAX_MODEL_BYTES 128U
+#define RVC_AUDIO_MAX_INDEX_PATH_BYTES 512U
 #define RVC_AUDIO_MAX_ERROR_BYTES 1024U
 #define RVC_AUDIO_MAX_INPUT_BYTES (768U * 1024U)
 #define RVC_AUDIO_MAX_OUTPUT_BYTES (768U * 1024U)
@@ -19,6 +20,7 @@ typedef struct rvc_audio_request {
 	uint64_t stream_id;
 	uint64_t stream_generation;
 	char model[RVC_AUDIO_MAX_MODEL_BYTES];
+	char index_path[RVC_AUDIO_MAX_INDEX_PATH_BYTES];
 	int32_t speaker;
 	int32_t f0_up_key;
 	char f0_method[8];
@@ -26,6 +28,7 @@ typedef struct rvc_audio_request {
 	int32_t resample_sr;
 	float rms_mix_rate;
 	float protect;
+	float index_rate;
 	uint8_t audio[RVC_AUDIO_MAX_INPUT_BYTES];
 } rvc_audio_request_t;
 
@@ -39,13 +42,13 @@ typedef struct rvc_audio_response {
 } rvc_audio_response_t;
 
 #if defined(__cplusplus)
-static_assert(sizeof(rvc_audio_request_t) == 786616U, "Audio request layout must match Python.");
-static_assert(offsetof(rvc_audio_request_t, audio) == 184U, "Audio request layout must match Python.");
+static_assert(sizeof(rvc_audio_request_t) == 787136U, "Audio request layout must match Python.");
+static_assert(offsetof(rvc_audio_request_t, audio) == 700U, "Audio request layout must match Python.");
 static_assert(sizeof(rvc_audio_response_t) == 787472U, "Audio response layout must match Python.");
 static_assert(offsetof(rvc_audio_response_t, audio) == 1040U, "Audio response layout must match Python.");
 #else
-_Static_assert(sizeof(rvc_audio_request_t) == 786616U, "Audio request layout must match Python.");
-_Static_assert(offsetof(rvc_audio_request_t, audio) == 184U, "Audio request layout must match Python.");
+_Static_assert(sizeof(rvc_audio_request_t) == 787136U, "Audio request layout must match Python.");
+_Static_assert(offsetof(rvc_audio_request_t, audio) == 700U, "Audio request layout must match Python.");
 _Static_assert(sizeof(rvc_audio_response_t) == 787472U, "Audio response layout must match Python.");
 _Static_assert(offsetof(rvc_audio_response_t, audio) == 1040U, "Audio response layout must match Python.");
 #endif

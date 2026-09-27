@@ -8,6 +8,7 @@
 namespace rvc::filter {
 
 inline constexpr char kModel[] = "model";
+inline constexpr char kIndexPath[] = "index_path";
 inline constexpr char kHubertPath[] = "hubert_path";
 inline constexpr char kRmvpePath[] = "rmvpe_path";
 inline constexpr char kModelStatus[] = "model_status";

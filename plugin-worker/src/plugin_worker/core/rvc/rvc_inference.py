@@ -13,12 +13,14 @@ from ...exceptions.rvc_inference_exceptions import (
     RVCAudioException,
     RVCConfigurationException,
     RVCInferenceException,
+    RVCIndexException,
     RVCInferenceModelNotFoundException,
 )
 from ...runtime import Runtime, runtime
 from ...utils.compatibility_utils import configure_torch
 from ...utils.inference_utils import bake_weight_norm
 from .rvc_inference_streaming import infer_window
+from .rvc_index import load_rvc_index
 from ..streaming.streaming_highpass_filter import StreamingHighpassFilter
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,7 @@ class RVCInference:
         self.model_locks: dict[str, threading.Lock] = {}
         self.realtime_pitch_warning_models: set[str] = set()
         self.hubert_models: dict[tuple[str, str, bool], Runtime.Hubert] = {}
+        self.indices: dict[tuple[str, str], tuple[Any, np.ndarray]] = {}
         self.lock = threading.Lock()
         self.vc_class: Any = None
 
@@ -41,6 +44,7 @@ class RVCInference:
         stream_id: int,
         stream_generation: int,
         model: str | None,
+        index_path: str | None,
         options: Runtime.Options,
     ) -> tuple[np.ndarray, int]:
         if np.asarray(audio).size == 0 or sample_rate <= 0:
@@ -55,6 +59,12 @@ class RVCInference:
         model_path = Path(model or runtime.model or "").expanduser().resolve()
         if model_path.suffix.lower() != ".pth" or not model_path.is_file():
             raise RVCInferenceModelNotFoundException()
+
+        index_file: Path | None = None
+        if index_path:
+            index_file = Path(index_path).expanduser().resolve()
+            if index_file.suffix.lower() != ".index" or not index_file.is_file():
+                raise RVCIndexException("RVC index file was not found.")
 
         with self.lock:
             if self.vc_class is None:
@@ -124,6 +134,14 @@ class RVCInference:
                 self.models[key] = vc
 
             vc: Any = self.models[key]
+            index: tuple[Any, np.ndarray] | None = None
+            if index_file is not None and options.index_rate > 0.0:
+                index_key = (key, str(index_file))
+                index = self.indices.get(index_key)
+                if index is None:
+                    index = load_rvc_index(str(index_file), vc.version)
+                    self.indices[index_key] = index
+                    logger.info("Loaded RVC index: %s (%d vectors)", index_file, index[0].ntotal)
             model_lock: threading.Lock = self.model_locks.setdefault(key, threading.Lock())
 
         with model_lock:
@@ -144,7 +162,7 @@ class RVCInference:
                     self.realtime_pitch_warning_models.add(key)
                 options = options.model_copy(update={"f0_method": "pm"})
 
-            output, target_sr, timings = infer_window(vc, stream, audio, sample_rate, options)
+            output, target_sr, timings = infer_window(vc, stream, audio, sample_rate, options, index)
             logger.debug(
                 "RVC timings ms: input_resample=%.1f filter=%.1f f0=%.1f hubert=%.1f generator=%.1f rms=%.1f output_resample=%.1f",
                 timings["input_resample"] * 1000,
@@ -161,7 +179,7 @@ class RVCInference:
     def warmup(self) -> None:
         options = Runtime.Options()
         silence = np.zeros(16_800, dtype=np.int16)
-        self.convert(silence, 48_000, 0, 0, None, options)
+        self.convert(silence, 48_000, 0, 0, None, None, options)
         with self.lock:
             for vc in self.models.values():
                 vc.streams.pop(0, None)
@@ -173,4 +191,5 @@ class RVCInference:
             self.model_locks.clear()
             self.realtime_pitch_warning_models.clear()
             self.hubert_models.clear()
+            self.indices.clear()
             self.vc_class = None

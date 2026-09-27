@@ -18,3 +18,7 @@ class RVCAudioException(RVCInferenceException):
 
 class RVCConfigurationException(RVCInferenceException):
     message: ClassVar[str] = "RVC inference configuration is incomplete or invalid."
+
+
+class RVCIndexException(RVCInferenceException):
+    message: ClassVar[str] = "RVC index is invalid."

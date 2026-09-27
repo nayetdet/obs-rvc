@@ -13,6 +13,7 @@ class AudioRequestSchema(BaseRequestSchema):
         ("stream_id", ctypes.c_uint64),
         ("stream_generation", ctypes.c_uint64),
         ("model", ctypes.c_char * Settings.max_model_bytes),
+        ("index_path", ctypes.c_char * Settings.max_path_bytes),
         ("speaker", ctypes.c_int32),
         ("f0_up_key", ctypes.c_int32),
         ("f0_method", ctypes.c_char * 8),
@@ -20,5 +21,6 @@ class AudioRequestSchema(BaseRequestSchema):
         ("resample_sr", ctypes.c_int32),
         ("rms_mix_rate", ctypes.c_float),
         ("protect", ctypes.c_float),
+        ("index_rate", ctypes.c_float),
         ("audio", ctypes.c_uint8 * Settings.max_audio_bytes),
     ]
