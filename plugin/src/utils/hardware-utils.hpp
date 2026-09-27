@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <set>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <thread>
@@ -53,38 +53,36 @@ inline std::string software_rendering_warning()
 	       "). This competes with RVC inference and can cause audio underflows. Enable GPU rendering.";
 }
 
-inline int64_t physical_cpu_count()
+inline int64_t available_cpu_count()
 {
+	const uint32_t hardware_threads = std::thread::hardware_concurrency();
+	int64_t available = hardware_threads == 0U ? 1 : static_cast<int64_t>(hardware_threads);
 #if defined(__linux__)
-	std::set<std::pair<std::string, std::string>> physical_cores;
 	cpu_set_t affinity;
 	CPU_ZERO(&affinity);
-	const bool has_affinity = sched_getaffinity(0, sizeof(affinity), &affinity) == 0;
-	const std::filesystem::path cpu_root("/sys/devices/system/cpu");
-	std::error_code error;
-	for (auto entry = std::filesystem::directory_iterator(cpu_root, error);
-	     !error && entry != std::filesystem::directory_iterator(); entry.increment(error)) {
-		const std::string name = entry->path().filename().string();
-		if (name.rfind("cpu", 0) != 0 || name.size() <= 3 ||
-		    !std::all_of(name.begin() + 3, name.end(), [](unsigned char value) { return std::isdigit(value); }))
-			continue;
-
-		const unsigned long cpu = std::stoul(name.substr(3));
-		if (has_affinity && (cpu >= CPU_SETSIZE || !CPU_ISSET(static_cast<int>(cpu), &affinity)))
-			continue;
-
-		std::ifstream package_file(entry->path() / "topology/physical_package_id");
-		std::ifstream core_file(entry->path() / "topology/core_id");
-		std::string package, core;
-		if (package_file >> package && core_file >> core)
-			physical_cores.emplace(package, core);
+	if (sched_getaffinity(0, sizeof(affinity), &affinity) == 0) {
+		const int affinity_threads = CPU_COUNT(&affinity);
+		if (affinity_threads > 0)
+			available = std::min<int64_t>(available, affinity_threads);
 	}
 
-	if (!physical_cores.empty())
-		return std::clamp<int64_t>(static_cast<int64_t>(physical_cores.size()), 1, 256);
+	std::ifstream cgroup_v2("/sys/fs/cgroup/cpu.max");
+	std::string quota_text;
+	int64_t period = 0;
+	if (cgroup_v2 >> quota_text >> period && quota_text != "max" && period > 0) {
+		std::istringstream quota_stream(quota_text);
+		int64_t quota = 0;
+		if (quota_stream >> quota && quota > 0)
+			available = std::min(available, std::max<int64_t>(1, (quota + period - 1) / period));
+	} else {
+		std::ifstream quota_file("/sys/fs/cgroup/cpu/cpu.cfs_quota_us");
+		std::ifstream period_file("/sys/fs/cgroup/cpu/cpu.cfs_period_us");
+		int64_t quota = 0;
+		if (quota_file >> quota && period_file >> period && quota > 0 && period > 0)
+			available = std::min(available, std::max<int64_t>(1, (quota + period - 1) / period));
+	}
 #endif
-	const uint32_t detected = std::thread::hardware_concurrency();
-	return std::clamp<int64_t>(detected == 0U ? 1U : detected, 1, 256);
+	return std::clamp<int64_t>(available, 1, 256);
 }
 
 }

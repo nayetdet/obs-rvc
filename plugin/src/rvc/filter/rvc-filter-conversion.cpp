@@ -6,6 +6,7 @@
 #include <obs-module.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
@@ -25,6 +26,7 @@ constexpr size_t kOutputLowWaterBlocks = kInitialOutputBlocks - 1U;
 std::mutex workers_mutex;
 std::set<ConversionWorker *> workers;
 bool workers_stopping = false;
+std::atomic<uint64_t> next_stream_id{1U};
 
 size_t frame_count_for_duration(uint32_t sample_rate, uint32_t duration_ms)
 {
@@ -36,7 +38,7 @@ size_t conversion_frame_count(uint32_t sample_rate, int32_t duration_ms, uint16_
 	if (duration_ms <= 0)
 		return 0U;
 	const size_t context = frame_count_for_duration(sample_rate, kStreamHistoryMs + kStreamLookaheadMs);
-	const size_t capacity = RVC_AUDIO_MAX_INPUT_BYTES / sizeof(float);
+	const size_t capacity = RVC_AUDIO_MAX_INPUT_BYTES / sizeof(int16_t);
 	if (capacity <= context)
 		return 0U;
 	return std::min(frame_count_for_duration(sample_rate, static_cast<uint32_t>(duration_ms)), capacity - context);
@@ -65,11 +67,11 @@ bool decode_to_input_format(const rvc_audio_response_t &response, uint32_t input
 			    uint32_t input_frames, std::vector<float> &output)
 {
 	if (response.audio_size > RVC_AUDIO_MAX_OUTPUT_BYTES || response.audio_size == 0U ||
-	    response.audio_size % sizeof(float) != 0U || response.sample_rate == 0U)
+	    response.audio_size % sizeof(int16_t) != 0U || response.sample_rate == 0U)
 		return false;
 
 	const uint32_t output_sample_rate = response.sample_rate;
-	const size_t decoded_frames = response.audio_size / sizeof(float);
+	const size_t decoded_frames = response.audio_size / sizeof(int16_t);
 	if (decoded_frames == 0U)
 		return false;
 
@@ -82,13 +84,13 @@ bool decode_to_input_format(const rvc_audio_response_t &response, uint32_t input
 		const size_t first = std::min(static_cast<size_t>(position), decoded_frames - 1U);
 		const size_t second = std::min(first + 1U, decoded_frames - 1U);
 		const float fraction = static_cast<float>(position - first);
-		float first_sample = 0.0F;
-		float second_sample = 0.0F;
-		std::memcpy(&first_sample, response.audio + first * sizeof(float), sizeof(float));
-		std::memcpy(&second_sample, response.audio + second * sizeof(float), sizeof(float));
+		int16_t first_sample = 0;
+		int16_t second_sample = 0;
+		std::memcpy(&first_sample, response.audio + first * sizeof(int16_t), sizeof(int16_t));
+		std::memcpy(&second_sample, response.audio + second * sizeof(int16_t), sizeof(int16_t));
 		for (uint16_t channel = 0U; channel < input_channels; ++channel) {
-			const float a = std::isfinite(first_sample) ? first_sample : 0.0F;
-			const float b = std::isfinite(second_sample) ? second_sample : 0.0F;
+			const float a = static_cast<float>(first_sample) / 32768.0F;
+			const float b = static_cast<float>(second_sample) / 32768.0F;
 			output[static_cast<size_t>(frame) * input_channels + channel] = a + (b - a) * fraction;
 		}
 	}
@@ -98,7 +100,12 @@ bool decode_to_input_format(const rvc_audio_response_t &response, uint32_t input
 }
 
 struct ConversionWorker::Impl {
-	explicit Impl(rvc_ipc_t *ipc_context) : ipc(ipc_context), thread(&Impl::run, this) {}
+	explicit Impl(rvc_ipc_t *ipc_context)
+		: ipc(ipc_context),
+		  stream_id(next_stream_id.fetch_add(1U)),
+		  thread(&Impl::run, this)
+	{
+	}
 	~Impl() { stop(); }
 
 	rvc_ipc_t *ipc;
@@ -109,6 +116,7 @@ struct ConversionWorker::Impl {
 	AudioSampleQueue output;
 	uint32_t sample_rate = 0U;
 	uint16_t channels = 0U;
+	uint64_t stream_id = 0U;
 	uint64_t generation = 0U;
 	int32_t active_chunk_duration_ms = 500;
 	int32_t startup_chunk_duration_ms = 500;
@@ -219,6 +227,7 @@ void ConversionWorker::submit(const obs_audio_data &audio, uint32_t sample_rate,
 			hop_frames == 0U ? excess_frames
 					 : ((excess_frames + hop_frames - 1U) / hop_frames) * hop_frames;
 		impl->input.discard(frames_to_discard);
+		++impl->generation;
 		impl->discontinuity = true;
 	}
 
@@ -227,40 +236,49 @@ void ConversionWorker::submit(const obs_audio_data &audio, uint32_t sample_rate,
 
 bool ConversionWorker::receive(obs_audio_data &audio, uint16_t channels)
 {
-	std::lock_guard<std::mutex> lock(impl->mutex);
-	if (channels == 0 || channels != impl->channels)
-		return false;
-
-	if (!impl->playback_started) {
-		const size_t initial_buffer_frames =
-			conversion_frame_count(impl->sample_rate, impl->startup_chunk_duration_ms, channels) *
-			kInitialOutputBlocks;
-		if (impl->output.size() < initial_buffer_frames * channels)
+	thread_local std::vector<float> samples;
+	float playback_gain = 0.0F;
+	float gain_step = 0.0F;
+	uint64_t playback_generation = 0U;
+	{
+		std::lock_guard<std::mutex> lock(impl->mutex);
+		if (channels == 0 || channels != impl->channels)
 			return false;
-		impl->playback_started = true;
-	}
 
-	const float fade_frames = static_cast<float>(std::max<size_t>(1, impl->sample_rate / 200));
-	const size_t sample_count = static_cast<size_t>(audio.frames) * channels;
-	if (impl->output.size() < sample_count) {
-		impl->playback_gain = 0.0F;
-		++impl->output_underflows;
-		return false;
-	}
-
-	size_t remaining = sample_count;
-	uint32_t frame = 0U;
-	while (remaining > 0U) {
-		const size_t contiguous = std::min(remaining, impl->output.front_size());
-		const float *converted = impl->output.front_data();
-		for (size_t sample = 0U; sample < contiguous; sample += channels, ++frame) {
-			impl->playback_gain = std::min(1.0F, impl->playback_gain + 1.0F / fade_frames);
-			for (uint16_t channel = 0U; channel < channels; ++channel)
-				reinterpret_cast<float *>(audio.data[channel])[frame] =
-					converted[sample + channel] * impl->playback_gain;
+		if (!impl->playback_started) {
+			const size_t initial_buffer_frames =
+				conversion_frame_count(impl->sample_rate, impl->startup_chunk_duration_ms, channels) *
+				kInitialOutputBlocks;
+			if (impl->output.size() < initial_buffer_frames * channels)
+				return false;
+			impl->playback_started = true;
 		}
-		impl->output.discard(contiguous);
-		remaining -= contiguous;
+
+		const size_t sample_count = static_cast<size_t>(audio.frames) * channels;
+		if (impl->output.size() < sample_count) {
+			impl->playback_gain = 0.0F;
+			++impl->output_underflows;
+			return false;
+		}
+
+		impl->output.copy_front(samples, sample_count);
+		impl->output.discard(sample_count);
+		playback_gain = impl->playback_gain;
+		gain_step = 1.0F / static_cast<float>(std::max<size_t>(1, impl->sample_rate / 200));
+		playback_generation = impl->generation;
+	}
+
+	for (uint32_t frame = 0U; frame < audio.frames; ++frame) {
+		playback_gain = std::min(1.0F, playback_gain + gain_step);
+		for (uint16_t channel = 0U; channel < channels; ++channel)
+			reinterpret_cast<float *>(audio.data[channel])[frame] =
+				samples[static_cast<size_t>(frame) * channels + channel] * playback_gain;
+	}
+
+	{
+		std::lock_guard<std::mutex> lock(impl->mutex);
+		if (impl->generation == playback_generation)
+			impl->playback_gain = playback_gain;
 	}
 	impl->work_ready.notify_one();
 	return true;
@@ -274,8 +292,10 @@ void ConversionWorker::Impl::run()
 	auto last_warning = std::chrono::steady_clock::time_point{};
 	uint64_t reported_underflows = 0U;
 	std::vector<float> input_samples;
+	std::vector<float> window_samples;
 	std::vector<float> converted;
 	std::vector<float> stitched;
+	std::vector<int16_t> pcm;
 	for (;;) {
 		ConversionOptions conversion_options;
 		uint32_t input_sample_rate = 0U;
@@ -324,9 +344,17 @@ void ConversionWorker::Impl::run()
 			}
 		}
 
-		input_samples = stream.window(input_samples, hop_frames, context_frames, 1U);
-		request->audio_size = static_cast<uint32_t>(input_samples.size() * sizeof(float));
+		stream.window(input_samples, hop_frames, context_frames, 1U, window_samples);
+		pcm.resize(window_samples.size());
+		for (size_t sample = 0U; sample < window_samples.size(); ++sample) {
+			const float value = std::isfinite(window_samples[sample]) ? window_samples[sample] : 0.0F;
+			pcm[sample] =
+				static_cast<int16_t>(std::clamp(std::floor(value * 32768.0F), -32768.0F, 32767.0F));
+		}
+		request->audio_size = static_cast<uint32_t>(pcm.size() * sizeof(int16_t));
 		request->sample_rate = input_sample_rate;
+		request->stream_id = stream_id;
+		request->stream_generation = input_generation;
 		if (!utils::copy_string(request->model, conversion_options.model.c_str()) ||
 		    !utils::copy_string(request->f0_method, conversion_options.f0_method.c_str())) {
 			blog(LOG_ERROR, "[obs-rvc] Conversion settings exceed IPC limits.");
@@ -341,7 +369,7 @@ void ConversionWorker::Impl::run()
 		request->rms_mix_rate = conversion_options.rms_mix_rate;
 		request->protect = conversion_options.protect;
 		request->index_rate = conversion_options.index_rate;
-		std::memcpy(request->audio, input_samples.data(), request->audio_size);
+		std::memcpy(request->audio, pcm.data(), request->audio_size);
 
 		const auto started_at = std::chrono::steady_clock::now();
 		const uint32_t timeout_ms = first_conversion ? kWarmupConversionTimeoutMs : kConversionTimeoutMs;
@@ -352,7 +380,7 @@ void ConversionWorker::Impl::run()
 			continue;
 		}
 
-		const uint32_t input_frames = static_cast<uint32_t>(input_samples.size());
+		const uint32_t input_frames = static_cast<uint32_t>(window_samples.size());
 		if (!decode_to_input_format(*response, input_sample_rate, input_channels, input_frames, converted)) {
 			stream.reset();
 			blog(LOG_ERROR, "[obs-rvc] Worker returned invalid converted audio.");

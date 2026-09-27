@@ -12,7 +12,7 @@ class StreamingResampler:
         self.previous_input = np.empty(0, dtype=np.float32)
         self.previous_output = np.empty(0, dtype=np.float32)
 
-    def resample(self, samples: np.ndarray, input_rate: int, output_rate: int) -> np.ndarray:
+    def resample(self, samples: np.ndarray, input_rate: int, output_rate: int, overlap: int = 0) -> np.ndarray:
         if input_rate == output_rate:
             return np.asarray(samples, dtype=np.float32)
 
@@ -24,8 +24,12 @@ class StreamingResampler:
             self.previous_input = np.empty(0, dtype=np.float32)
             self.previous_output = np.empty(0, dtype=np.float32)
 
-        overlap = min(len(self.previous_input), len(samples), input_rate // 10)
-        if overlap and np.array_equal(self.previous_input[-overlap:], samples[:overlap]):
+        overlap = min(overlap, len(self.previous_input), len(samples))
+        detected_overlap = min(len(self.previous_input), len(samples), input_rate // 10)
+        if overlap or (
+            detected_overlap and np.array_equal(self.previous_input[-detected_overlap:], samples[:detected_overlap])
+        ):
+            overlap = overlap or detected_overlap
             prefix = self.previous_output[-round(overlap * output_rate / input_rate) :]
             fresh = samples[overlap:]
         else:
@@ -46,10 +50,3 @@ class StreamingResampler:
         self.previous_input = samples.copy()
         self.previous_output = result.copy()
         return result
-
-    def reset(self) -> None:
-        self.input_rate = 0
-        self.output_rate = 0
-        self.stream = None
-        self.previous_input = np.empty(0, dtype=np.float32)
-        self.previous_output = np.empty(0, dtype=np.float32)

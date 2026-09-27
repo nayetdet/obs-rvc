@@ -10,6 +10,8 @@ class AudioRequestSchema(BaseRequestSchema):
     _fields_ = [
         ("audio_size", ctypes.c_uint32),
         ("sample_rate", ctypes.c_uint32),
+        ("stream_id", ctypes.c_uint64),
+        ("stream_generation", ctypes.c_uint64),
         ("model", ctypes.c_char * Settings.max_model_bytes),
         ("speaker", ctypes.c_int32),
         ("f0_up_key", ctypes.c_int32),

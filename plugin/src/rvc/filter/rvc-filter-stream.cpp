@@ -87,15 +87,16 @@ void StreamAssembler::reset()
 	tail.clear();
 }
 
-std::vector<float> StreamAssembler::window(const std::vector<float> &input, size_t hop, size_t context, size_t channels)
+void StreamAssembler::window(const std::vector<float> &input, size_t hop, size_t context, size_t channels,
+			     std::vector<float> &result)
 {
 	if (history.size() != context * channels)
 		history.assign(context * channels, 0.0F);
 
-	std::vector<float> result = history;
-	result.insert(result.end(), input.begin(), input.end());
-	history.assign(result.begin() + hop * channels, result.begin() + (hop + context) * channels);
-	return result;
+	result.resize(history.size() + input.size());
+	std::memcpy(result.data(), history.data(), history.size() * sizeof(float));
+	std::memcpy(result.data() + history.size(), input.data(), input.size() * sizeof(float));
+	std::memcpy(history.data(), result.data() + hop * channels, history.size() * sizeof(float));
 }
 
 bool StreamAssembler::stitch(const std::vector<float> &converted, size_t hop, size_t context, size_t overlap,

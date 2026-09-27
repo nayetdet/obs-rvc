@@ -3,6 +3,8 @@ from typing import ClassVar
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .utils.compatibility_utils import available_cpu_count
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -15,11 +17,12 @@ class Settings(BaseSettings):
     max_model_bytes: ClassVar[int] = 128
     max_path_bytes: ClassVar[int] = 512
     max_error_bytes: ClassVar[int] = 1024
-    max_audio_bytes: ClassVar[int] = 2 * 1024 * 1024
-    max_output_bytes: ClassVar[int] = 2 * 1024 * 1024
+    max_audio_bytes: ClassVar[int] = 768 * 1024
+    max_output_bytes: ClassVar[int] = 768 * 1024
 
     service_name: str = "obs/rvc"
     wait_ms: int = Field(default=10, ge=1, le=1000)
+    parallel_workers: int = Field(default_factory=lambda: max(1, min(4, available_cpu_count() // 8)), ge=1, le=4)
 
 
 settings: Settings = Settings()

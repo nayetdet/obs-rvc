@@ -5,14 +5,14 @@ from typing import Generic, TypeVar
 
 import iceoryx2 as iox2
 
-from ...schemas.requests.base_request_schema import BaseRequestSchema
-from ...schemas.responses.base_response_schema import BaseResponseSchema
+from ..schemas.requests.base_request_schema import BaseRequestSchema
+from ..schemas.responses.base_response_schema import BaseResponseSchema
 
 RequestSchema = TypeVar("RequestSchema", bound=BaseRequestSchema)
 ResponseSchema = TypeVar("ResponseSchema", bound=BaseResponseSchema)
 
 
-class BaseHandler(Generic[RequestSchema, ResponseSchema], ABC):
+class BaseEndpoint(Generic[RequestSchema, ResponseSchema], ABC):
     def __init__(
         self,
         service_name: str,
@@ -45,4 +45,4 @@ class BaseHandler(Generic[RequestSchema, ResponseSchema], ABC):
 
     @abstractmethod
     def handle(self, request: RequestSchema) -> ResponseSchema:
-        raise NotImplementedError
+        ...

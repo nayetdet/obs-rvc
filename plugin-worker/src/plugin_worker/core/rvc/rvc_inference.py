@@ -3,21 +3,27 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from ..exceptions.rvc_inference_error import RVCInferenceError
-from ..exceptions.rvc_inference_model_not_found import RVCInferenceModelNotFoundError
-from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
-from ..runtime import runtime
-from ..utils.compatibility_utils import configure_torch
-from ..utils.inference_utils import bake_weight_norm
+from ...exceptions.rvc_inference_exceptions import (
+    RVCAudioException,
+    RVCConfigurationException,
+    RVCInferenceException,
+    RVCInferenceModelNotFoundException,
+)
+from ...runtime import Runtime, runtime
+from ...utils.compatibility_utils import configure_torch
+from ...utils.inference_utils import bake_weight_norm
 from .rvc_inference_streaming import infer_window
-from .rvc_inference_streaming_resampler import StreamingResampler
+from .rvc_index import load_rvc_index
+from ..streaming.streaming_highpass_filter import StreamingHighpassFilter
 
 logger = logging.getLogger(__name__)
+
 
 class RVCInference:
     def __init__(self) -> None:
@@ -25,6 +31,7 @@ class RVCInference:
         self.model_errors: dict[str, str] = {}
         self.model_locks: dict[str, threading.Lock] = {}
         self.realtime_pitch_warning_models: set[str] = set()
+        self.hubert_models: dict[tuple[str, str, bool], Runtime.Hubert] = {}
         self.lock = threading.Lock()
         self.vc_class: Any = None
 
@@ -32,31 +39,33 @@ class RVCInference:
         self,
         audio: Any,
         sample_rate: int,
+        stream_id: int,
+        stream_generation: int,
         model: str | None,
-        options: RVCInferenceOptionsSchema,
+        options: Runtime.Options,
     ) -> tuple[np.ndarray, int]:
         if np.asarray(audio).size == 0 or sample_rate <= 0:
-            raise RVCInferenceError()
+            raise RVCAudioException()
 
         if runtime.hubert_path is None or runtime.rmvpe_path is None:
-            raise RVCInferenceError()
+            raise RVCConfigurationException("HuBERT and RMVPE paths must be configured.")
 
         if not model and not runtime.model:
-            raise RVCInferenceModelNotFoundError()
+            raise RVCInferenceModelNotFoundException()
 
         model_path = Path(model or runtime.model or "").expanduser().resolve()
         if model_path.suffix.lower() != ".pth" or not model_path.is_file():
-            raise RVCInferenceModelNotFoundError()
+            raise RVCInferenceModelNotFoundException()
 
         with self.lock:
             if self.vc_class is None:
                 hubert_path = runtime.hubert_path.expanduser().resolve()
                 rmvpe_path = runtime.rmvpe_path.expanduser().resolve()
                 if not hubert_path.is_file():
-                    raise RVCInferenceError()
+                    raise RVCConfigurationException("HuBERT model file was not found.")
 
                 if not rmvpe_path.is_file() or rmvpe_path.name != "rmvpe.pt":
-                    raise RVCInferenceError()
+                    raise RVCConfigurationException("RMVPE model file is missing or invalid.")
 
                 os.environ.update(
                     hubert_path=str(hubert_path),
@@ -79,7 +88,7 @@ class RVCInference:
 
             key: str = str(model_path)
             if key in self.model_errors:
-                raise RVCInferenceError(self.model_errors[key])
+                raise RVCInferenceException(self.model_errors[key])
 
             if key not in self.models:
                 logger.info("Loading RVC model: %s", model_path)
@@ -89,8 +98,12 @@ class RVCInference:
                     vc.index_path = index_path
                     vc.index = None
                     vc.big_npy = None
+                    vc.index_load_attempted = False
                     vc.speakers = {}
-                    vc.input_resampler = StreamingResampler()
+                    from rvc.modules.vc.pipeline import ah, bh
+
+                    vc.input_filter_coefficients = (bh, ah)
+                    vc.streams = OrderedDict()
                     removed_weight_norms = bake_weight_norm(vc.net_g)
                     if removed_weight_norms:
                         logger.info(
@@ -98,23 +111,30 @@ class RVCInference:
                             removed_weight_norms,
                         )
 
-                    from rvc.modules.vc.utils import load_hubert
-                    vc.hubert_model = load_hubert(vc.config, str(runtime.hubert_path.expanduser().resolve()))
+                    hubert_path = str(runtime.hubert_path.expanduser().resolve())
+                    hubert_key = (hubert_path, str(vc.config.device), bool(vc.config.is_half))
+                    hubert_resource = self.hubert_models.get(hubert_key)
+                    if hubert_resource is None:
+                        from rvc.modules.vc.utils import load_hubert
+                        hubert_resource = Runtime.Hubert(model=load_hubert(vc.config, hubert_path))
+                        self.hubert_models[hubert_key] = hubert_resource
+
+                    vc.hubert_model = hubert_resource.model
+                    vc.hubert_lock = hubert_resource.lock
                     logger.info("RVC inference device: %s", vc.config.device)
                 except Exception as exc:
                     logger.exception("Unable to load RVC model: %s", model_path)
                     message = f"Unable to load RVC model '{model_path.name}'."
                     self.model_errors[key] = message
-                    raise RVCInferenceError(message) from exc
+                    raise RVCInferenceException(message) from exc
                 self.models[key] = vc
 
             vc: Any = self.models[key]
-            if vc.index is None and vc.index_path and options.index_rate > 0.0:
+            if not vc.index_load_attempted and vc.index_path and options.index_rate > 0.0:
+                vc.index_load_attempted = True
                 try:
-                    import faiss
-
-                    vc.index = faiss.read_index(vc.index_path)
-                    vc.big_npy = vc.index.reconstruct_n(0, vc.index.ntotal)
+                    vc.index, vc.big_npy = load_rvc_index(vc.index_path, vc.version)
+                    logger.info("Loaded RVC index: %s (%d vectors)", vc.index_path, vc.index.ntotal)
                 except Exception:
                     logger.warning("Unable to load RVC index: %s", vc.index_path, exc_info=True)
 
@@ -122,12 +142,34 @@ class RVCInference:
 
         with model_lock:
             vc: Any = self.models[key]
+            stream = vc.streams.get(stream_id)
+            if stream is None or stream.generation != stream_generation:
+                stream = Runtime.Stream(generation=stream_generation)
+                stream.input_filter = StreamingHighpassFilter(*vc.input_filter_coefficients)
+                vc.streams[stream_id] = stream
+
+            vc.streams.move_to_end(stream_id)
+            while len(vc.streams) > 16:
+                vc.streams.popitem(last=False)
+
             if str(vc.config.device) == "cpu" and options.f0_method != "pm":
                 if key not in self.realtime_pitch_warning_models:
                     logger.warning("Using PM pitch tracking for realtime CPU conversion.")
                     self.realtime_pitch_warning_models.add(key)
                 options = options.model_copy(update={"f0_method": "pm"})
-            output, target_sr = infer_window(vc, audio, sample_rate, options)
+
+            output, target_sr, timings = infer_window(vc, stream, audio, sample_rate, options)
+            logger.debug(
+                "RVC timings ms: input_resample=%.1f filter=%.1f f0=%.1f hubert=%.1f generator=%.1f rms=%.1f output_resample=%.1f",
+                timings["input_resample"] * 1000,
+                timings["filter"] * 1000,
+                timings["f0"] * 1000,
+                timings["hubert"] * 1000,
+                timings["generator"] * 1000,
+                timings["rms"] * 1000,
+                timings["output_resample"] * 1000,
+            )
+
             return output, target_sr
 
     def reset(self) -> None:
@@ -136,4 +178,5 @@ class RVCInference:
             self.model_errors.clear()
             self.model_locks.clear()
             self.realtime_pitch_warning_models.clear()
+            self.hubert_models.clear()
             self.vc_class = None

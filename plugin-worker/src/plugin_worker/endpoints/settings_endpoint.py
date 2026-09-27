@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...core.rvc_inference import RVCInference
-from ...mappers.response_mapper import settings_error, settings_success
-from ...schemas.requests.settings_request_schema import SettingsRequestSchema
-from ...schemas.responses.settings_response_schema import SettingsResponseSchema
-from ...runtime import runtime
-from ...settings import settings
-from ...utils.text_utils import decode_c_string
-from .base_handler import BaseHandler
+from ..core.rvc.rvc_inference import RVCInference
+from ..mappers.settings_mapper import settings_error, settings_success
+from ..schemas.requests.settings_request_schema import SettingsRequestSchema
+from ..schemas.responses.settings_response_schema import SettingsResponseSchema
+from ..runtime import runtime
+from ..settings import settings
+from ..utils.text_utils import decode_c_string
+from .base_endpoint import BaseEndpoint
 
 
-class SettingsHandler(BaseHandler[SettingsRequestSchema, SettingsResponseSchema]):
+class SettingsEndpoint(BaseEndpoint[SettingsRequestSchema, SettingsResponseSchema]):
     def __init__(self, rvc: RVCInference) -> None:
         super().__init__(
             f"{settings.service_name}/settings",

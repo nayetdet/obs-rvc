@@ -39,8 +39,7 @@ rvc_ipc_t *g_ipc = nullptr;
 
 bool cpu_thread_allocation_modified(obs_properties_t *properties, obs_property_t *property, obs_data_t *settings)
 {
-	const int32_t total_threads =
-		static_cast<int32_t>(std::clamp<int64_t>(rvc::utils::physical_cpu_count(), 1, 256));
+	const int32_t total_threads = static_cast<int32_t>(rvc::utils::available_cpu_count());
 	const int32_t changed_threads = static_cast<int32_t>(obs_data_get_int(settings, obs_property_name(property)));
 	int32_t inference_threads = static_cast<int32_t>(obs_data_get_int(settings, kInferenceThreads));
 	int32_t obs_reserved_threads = static_cast<int32_t>(obs_data_get_int(settings, kObsReservedThreads));
@@ -82,8 +81,8 @@ void rvc_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, kChunkDurationMs, 500);
 	obs_data_set_default_int(settings, kInitialChunkDurationMs, 500);
 	obs_data_set_default_int(settings, kMaximumChunkDurationMs, 2000);
-	const int64_t total_threads = rvc::utils::physical_cpu_count();
-	const int64_t default_obs_threads = total_threads >= 4 ? 2 : 0;
+	const int64_t total_threads = rvc::utils::available_cpu_count();
+	const int64_t default_obs_threads = total_threads >= 4 ? std::max<int64_t>(1, total_threads / 8) : 0;
 	obs_data_set_default_int(settings, kObsReservedThreads, default_obs_threads);
 	const int64_t reserved_threads =
 		std::clamp<int64_t>(obs_data_get_int(settings, kObsReservedThreads), 0, total_threads - 1);
@@ -134,8 +133,7 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_float_slider(properties, kIndexRate, "Index rate", 0.0, 1.0, 0.01);
 	obs_properties_add_int(properties, kInitialChunkDurationMs, "Initial conversion block (ms)", 500, 2000, 10);
 	obs_properties_add_int(properties, kMaximumChunkDurationMs, "Maximum conversion block (ms)", 500, 2000, 10);
-	const int32_t total_threads =
-		static_cast<int32_t>(std::clamp<int64_t>(rvc::utils::physical_cpu_count(), 1, 256));
+	const int32_t total_threads = static_cast<int32_t>(rvc::utils::available_cpu_count());
 	obs_property_t *inference_threads = obs_properties_add_int(
 		properties, kInferenceThreads, "CPU threads for RVC inference", 1, total_threads, 1);
 	obs_property_set_modified_callback(inference_threads, cpu_thread_allocation_modified);
@@ -143,7 +141,7 @@ obs_properties_t *rvc_filter_properties(void *)
 		properties, kObsReservedThreads, "CPU threads reserved for OBS", 0, total_threads - 1, 1);
 	obs_property_set_long_description(
 		obs_reserved_threads,
-		"These cores are excluded from the RVC inference thread pool so OBS and other tasks have more CPU time.");
+		"These available CPU threads are excluded from RVC inference so OBS and other tasks have more CPU time.");
 	obs_property_set_modified_callback(obs_reserved_threads, cpu_thread_allocation_modified);
 
 	return properties;
@@ -177,8 +175,7 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 		return;
 	}
 
-	const int32_t total_threads =
-		static_cast<int32_t>(std::clamp<int64_t>(rvc::utils::physical_cpu_count(), 1, 256));
+	const int32_t total_threads = static_cast<int32_t>(rvc::utils::available_cpu_count());
 	const int32_t obs_reserved_threads = static_cast<int32_t>(
 		std::clamp<int64_t>(obs_data_get_int(settings, kObsReservedThreads), 0, total_threads - 1));
 	const int32_t inference_threads = static_cast<int32_t>(std::clamp<int64_t>(

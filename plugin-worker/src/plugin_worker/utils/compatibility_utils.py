@@ -5,35 +5,38 @@ from pathlib import Path
 from typing import Any
 
 
-def physical_cpu_count() -> int:
-    allowed_cpus = set(range(os.cpu_count() or 1))
+def available_cpu_count() -> int:
+    available = os.cpu_count() or 1
     if hasattr(os, "sched_getaffinity"):
         try:
-            allowed_cpus = set(os.sched_getaffinity(0))
+            available = min(available, len(os.sched_getaffinity(0)))
         except OSError:
             pass
 
-    topology_root = Path("/sys/devices/system/cpu")
-    cores: set[tuple[str, str]] = set()
-    for cpu in allowed_cpus:
-        topology = topology_root / f"cpu{cpu}" / "topology"
+    cgroup_v2 = Path("/sys/fs/cgroup/cpu.max")
+    try:
+        quota, period = cgroup_v2.read_text().split()[:2]
+        if quota != "max":
+            quota_cpus = max(1, (int(quota) + int(period) - 1) // int(period))
+            available = min(available, quota_cpus)
+    except (OSError, ValueError, ZeroDivisionError):
+        quota_path = Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+        period_path = Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
         try:
-            cores.add(
-                (
-                    (topology / "physical_package_id").read_text().strip(),
-                    (topology / "core_id").read_text().strip(),
-                )
-            )
-        except OSError:
-            continue
-    return max(1, len(cores) if cores else len(allowed_cpus))
+            quota = int(quota_path.read_text())
+            period = int(period_path.read_text())
+            if quota > 0 and period > 0:
+                available = min(available, max(1, (quota + period - 1) // period))
+        except (OSError, ValueError, ZeroDivisionError):
+            pass
+    return max(1, min(256, available))
 
 
 def configure_torch(num_threads: int = 1, reserved_threads: int = 0) -> int:
     import torch
 
-    physical_cores = physical_cpu_count()
-    worker_limit = max(1, physical_cores - max(0, min(physical_cores - 1, int(reserved_threads))))
+    available_cpus = available_cpu_count()
+    worker_limit = max(1, available_cpus - max(0, min(available_cpus - 1, int(reserved_threads))))
     effective_threads = min(max(1, min(256, int(num_threads))), worker_limit)
     os.environ["OMP_NUM_THREADS"] = str(effective_threads)
     os.environ["MKL_NUM_THREADS"] = str(effective_threads)

@@ -30,7 +30,8 @@ private:
 class StreamAssembler {
 public:
 	void reset();
-	std::vector<float> window(const std::vector<float> &input, size_t hop, size_t context, size_t channels);
+	void window(const std::vector<float> &input, size_t hop, size_t context, size_t channels,
+		    std::vector<float> &result);
 	bool stitch(const std::vector<float> &converted, size_t hop, size_t context, size_t overlap, size_t search,
 		    size_t channels, std::vector<float> &result);
 
