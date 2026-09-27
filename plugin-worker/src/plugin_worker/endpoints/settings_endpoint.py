@@ -43,4 +43,4 @@ class SettingsEndpoint(BaseEndpoint[SettingsRequestSchema, SettingsResponseSchem
             return settings_error(str(exc))
         except Exception:
             return settings_error("Unable to prepare the RVC model.")
-        return settings_success()
+        return settings_success(self.rvc.uses_gpu_acceleration())

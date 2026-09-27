@@ -14,6 +14,7 @@ struct RvcFilterData {
 	std::mutex mutex;
 	std::mutex update_mutex;
 	bool configured = false;
+	bool gpu_accelerated = false;
 	std::unique_ptr<rvc::filter::ConversionWorker> conversion_worker;
 };
 

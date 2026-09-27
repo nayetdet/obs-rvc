@@ -33,6 +33,7 @@ constexpr char kMaximumChunkDurationMs[] = "maximum_chunk_duration_ms";
 constexpr char kInferenceThreads[] = "inference_threads";
 constexpr char kObsReservedThreads[] = "obs_reserved_threads";
 constexpr char kRenderingWarning[] = "rendering_warning";
+constexpr char kRvcGpuWarning[] = "rvc_gpu_warning";
 constexpr uint32_t kWorkerStartupTimeoutMs = 30000U;
 constexpr uint32_t kWorkerConfigureAttempts = 2U;
 rvc_ipc_t *g_ipc = nullptr;
@@ -94,13 +95,28 @@ void rvc_filter_defaults(obs_data_t *settings)
 				 std::max<int64_t>(1, std::min<int64_t>(8, total_threads - reserved_threads)));
 }
 
-obs_properties_t *rvc_filter_properties(void *)
+obs_properties_t *rvc_filter_properties(void *raw_data)
 {
 	obs_properties_t *properties = obs_properties_create();
 	const std::string rendering_warning = rvc::utils::software_rendering_warning();
 	if (!rendering_warning.empty()) {
 		obs_property_t *warning = obs_properties_add_text(properties, kRenderingWarning,
 								  rendering_warning.c_str(), OBS_TEXT_INFO);
+		if (warning != nullptr)
+			obs_property_text_set_info_type(warning, OBS_TEXT_INFO_WARNING);
+	}
+
+	bool show_rvc_gpu_warning = false;
+	if (auto *data = static_cast<RvcFilterData *>(raw_data); data != nullptr) {
+		std::lock_guard<std::mutex> lock(data->mutex);
+		show_rvc_gpu_warning = data->configured && !data->gpu_accelerated;
+	}
+
+	if (show_rvc_gpu_warning) {
+		obs_property_t *warning = obs_properties_add_text(
+			properties, kRvcGpuWarning,
+			"RVC inference is using the CPU instead of GPU acceleration. Voice conversion may be slower and can cause audio dropouts.",
+			OBS_TEXT_INFO);
 		if (warning != nullptr)
 			obs_property_text_set_info_type(warning, OBS_TEXT_INFO_WARNING);
 	}
@@ -247,6 +263,7 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	obs_data_set_int(settings, kInitialChunkDurationMs, options.initial_chunk_duration_ms);
 	obs_data_set_int(settings, kMaximumChunkDurationMs, options.maximum_chunk_duration_ms);
 	data->configured = true;
+	data->gpu_accelerated = response.gpu_accelerated != 0U;
 	if (data->conversion_worker)
 		data->conversion_worker->reset(options);
 

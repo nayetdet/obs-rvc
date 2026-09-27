@@ -22,6 +22,7 @@ typedef struct rvc_settings_request {
 
 typedef struct rvc_settings_response {
 	uint8_t status;
+	uint8_t gpu_accelerated;
 	uint32_t error_size;
 	char error[RVC_SETTINGS_MAX_ERROR_BYTES];
 } rvc_settings_response_t;
@@ -31,11 +32,13 @@ static_assert(sizeof(rvc_settings_request_t) == 1160U, "Settings request layout 
 static_assert(offsetof(rvc_settings_request_t, obs_reserved_threads) == 1156U,
 	      "Settings request layout must match Python.");
 static_assert(sizeof(rvc_settings_response_t) == 1032U, "Settings response layout must match Python.");
+static_assert(offsetof(rvc_settings_response_t, gpu_accelerated) == 1U, "Settings response layout must match Python.");
 static_assert(offsetof(rvc_settings_response_t, error_size) == 4U, "Settings response layout must match Python.");
 #else
 _Static_assert(sizeof(rvc_settings_request_t) == 1160U, "Settings request layout must match Python.");
 _Static_assert(offsetof(rvc_settings_request_t, obs_reserved_threads) == 1156U,
 	       "Settings request layout must match Python.");
 _Static_assert(sizeof(rvc_settings_response_t) == 1032U, "Settings response layout must match Python.");
+_Static_assert(offsetof(rvc_settings_response_t, gpu_accelerated) == 1U, "Settings response layout must match Python.");
 _Static_assert(offsetof(rvc_settings_response_t, error_size) == 4U, "Settings response layout must match Python.");
 #endif

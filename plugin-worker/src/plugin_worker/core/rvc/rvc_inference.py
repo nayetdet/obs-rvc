@@ -18,6 +18,7 @@ from ...exceptions.rvc_inference_exceptions import (
 )
 from ...runtime import Runtime, runtime
 from ...utils.compatibility_utils import configure_torch
+from ...utils.hardware_utils import is_gpu_accelerated_device
 from ...utils.inference_utils import bake_weight_norm
 from .rvc_inference_streaming import infer_window
 from .rvc_index import load_rvc_index
@@ -35,6 +36,10 @@ class RVCInference:
         self.indices: dict[tuple[str, str], tuple[Any, np.ndarray]] = {}
         self.lock = threading.Lock()
         self.vc_class: Any = None
+
+    def uses_gpu_acceleration(self) -> bool:
+        with self.lock:
+            return any(is_gpu_accelerated_device(vc.config.device) for vc in self.models.values())
 
     def convert(
         self,

@@ -14,7 +14,8 @@ def settings_error(message: str) -> SettingsResponseSchema:
     return response
 
 
-def settings_success() -> SettingsResponseSchema:
+def settings_success(gpu_accelerated: bool) -> SettingsResponseSchema:
     response = SettingsResponseSchema()
     response.status = IPCResponseStatusEnum.OK
+    response.gpu_accelerated = gpu_accelerated
     return response

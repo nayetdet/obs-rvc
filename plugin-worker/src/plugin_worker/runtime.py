@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from .core.streaming.streaming_resampler import StreamingResampler
-from .utils.compatibility_utils import available_cpu_count
+from .utils.hardware_utils import available_cpu_count
 
 
 class Runtime:

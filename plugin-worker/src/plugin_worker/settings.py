@@ -3,7 +3,7 @@ from typing import ClassVar
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .utils.compatibility_utils import available_cpu_count
+from .utils.hardware_utils import available_cpu_count
 
 
 class Settings(BaseSettings):
