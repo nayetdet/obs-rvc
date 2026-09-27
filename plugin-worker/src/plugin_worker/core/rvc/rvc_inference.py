@@ -80,6 +80,7 @@ class RVCInference:
                     hubert_path=str(hubert_path),
                     rmvpe_root=str(rmvpe_path.parent),
                     weight_root=str(model_path.parent),
+                    index_root=str(model_path.parent.parent / "index"),
                 )
 
                 effective_threads = configure_torch(runtime.inference_threads, runtime.obs_reserved_threads)
