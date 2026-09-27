@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from io import BytesIO
 from typing import Any
 
 import numpy as np
-import soundfile as sf
 
 from ..schemas.internal.rvc_inference_options_schema import RVCInferenceOptionsSchema
+from ..utils.audio_utils import decode_wav
 
 
 def infer_window(vc: Any, audio: bytes, options: RVCInferenceOptionsSchema) -> tuple[np.ndarray, int]:
@@ -15,8 +14,7 @@ def infer_window(vc: Any, audio: bytes, options: RVCInferenceOptionsSchema) -> t
     from scipy.signal import filtfilt
     from rvc.modules.vc.pipeline import bh, ah, change_rms, cache_harvest_f0, input_audio_path2wav
 
-    samples, rate = sf.read(BytesIO(audio), dtype="float32", always_2d=True)
-    samples = samples[:, 0] if samples.shape[1] == 1 else samples.mean(axis=1)
+    samples, rate = decode_wav(audio)
     if rate != 16000:
         samples = librosa.resample(samples, orig_sr=rate, target_sr=16000)
 
