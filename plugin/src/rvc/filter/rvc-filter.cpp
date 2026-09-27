@@ -78,15 +78,16 @@ void rvc_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, kRmsMixRate, 1.0);
 	obs_data_set_default_double(settings, kProtect, 0.33);
 	obs_data_set_default_double(settings, kIndexRate, 0.0);
-	obs_data_set_default_int(settings, kChunkDurationMs, 500);
-	obs_data_set_default_int(settings, kInitialChunkDurationMs, 500);
+	obs_data_set_default_int(settings, kChunkDurationMs, 250);
+	obs_data_set_default_int(settings, kInitialChunkDurationMs, 250);
 	obs_data_set_default_int(settings, kMaximumChunkDurationMs, 2000);
 	const int64_t total_threads = rvc::utils::available_cpu_count();
 	const int64_t default_obs_threads = total_threads >= 4 ? std::max<int64_t>(1, total_threads / 8) : 0;
 	obs_data_set_default_int(settings, kObsReservedThreads, default_obs_threads);
 	const int64_t reserved_threads =
 		std::clamp<int64_t>(obs_data_get_int(settings, kObsReservedThreads), 0, total_threads - 1);
-	obs_data_set_default_int(settings, kInferenceThreads, std::max<int64_t>(1, total_threads - reserved_threads));
+	obs_data_set_default_int(settings, kInferenceThreads,
+				 std::max<int64_t>(1, std::min<int64_t>(8, total_threads - reserved_threads)));
 }
 
 obs_properties_t *rvc_filter_properties(void *)
@@ -131,8 +132,8 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_float_slider(properties, kRmsMixRate, "RMS mix rate", 0.0, 1.0, 0.01);
 	obs_properties_add_float_slider(properties, kProtect, "Protect", 0.0, 0.5, 0.01);
 	obs_properties_add_float_slider(properties, kIndexRate, "Index rate", 0.0, 1.0, 0.01);
-	obs_properties_add_int(properties, kInitialChunkDurationMs, "Initial conversion block (ms)", 500, 2000, 10);
-	obs_properties_add_int(properties, kMaximumChunkDurationMs, "Maximum conversion block (ms)", 500, 2000, 10);
+	obs_properties_add_int(properties, kInitialChunkDurationMs, "Initial conversion block (ms)", 250, 2000, 10);
+	obs_properties_add_int(properties, kMaximumChunkDurationMs, "Maximum conversion block (ms)", 250, 2000, 10);
 	const int32_t total_threads = static_cast<int32_t>(rvc::utils::available_cpu_count());
 	obs_property_t *inference_threads = obs_properties_add_int(
 		properties, kInferenceThreads, "CPU threads for RVC inference", 1, total_threads, 1);
@@ -223,8 +224,8 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 						       : obs_data_get_int(settings, kChunkDurationMs);
 	data->initial_chunk_duration_ms =
 		saved_initial_duration > 2000
-			? 500
-			: static_cast<int32_t>(std::clamp<int64_t>(saved_initial_duration, 500, 2000));
+			? 250
+			: static_cast<int32_t>(std::clamp<int64_t>(saved_initial_duration, 250, 2000));
 	const int64_t saved_maximum_duration = obs_data_get_int(settings, kMaximumChunkDurationMs);
 	data->maximum_chunk_duration_ms = static_cast<int32_t>(
 		std::clamp<int64_t>(saved_maximum_duration, data->initial_chunk_duration_ms, 2000));

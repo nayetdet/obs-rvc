@@ -20,8 +20,8 @@ namespace rvc::filter {
 namespace {
 constexpr uint32_t kWarmupConversionTimeoutMs = 180000U;
 constexpr uint32_t kConversionTimeoutMs = 60000U;
-constexpr size_t kInitialOutputBlocks = 3U;
-constexpr size_t kOutputLowWaterBlocks = kInitialOutputBlocks - 1U;
+constexpr size_t kInitialOutputBlocks = 1U;
+constexpr size_t kOutputLowWaterBlocks = 1U;
 
 std::mutex workers_mutex;
 std::set<ConversionWorker *> workers;

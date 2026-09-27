@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..exceptions.rvc_inference_exceptions import RVCInferenceException
+
 from ..core.rvc.rvc_inference import RVCInference
 from ..mappers.settings_mapper import settings_error, settings_success
 from ..schemas.requests.settings_request_schema import SettingsRequestSchema
@@ -35,4 +37,10 @@ class SettingsEndpoint(BaseEndpoint[SettingsRequestSchema, SettingsResponseSchem
         runtime.obs_reserved_threads = max(0, min(256, int(request.obs_reserved_threads)))
 
         self.rvc.reset()
+        try:
+            self.rvc.warmup()
+        except RVCInferenceException as exc:
+            return settings_error(str(exc))
+        except Exception:
+            return settings_error("Unable to prepare the RVC model.")
         return settings_success()

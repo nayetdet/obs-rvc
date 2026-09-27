@@ -172,6 +172,14 @@ class RVCInference:
 
             return output, target_sr
 
+    def warmup(self) -> None:
+        options = Runtime.Options()
+        silence = np.zeros(16_800, dtype=np.int16)
+        self.convert(silence, 48_000, 0, 0, None, options)
+        with self.lock:
+            for vc in self.models.values():
+                vc.streams.pop(0, None)
+
     def reset(self) -> None:
         with self.lock:
             self.models.clear()

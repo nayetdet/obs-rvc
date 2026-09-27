@@ -24,7 +24,7 @@ struct RvcFilterData {
 	float rms_mix_rate = 1.0F;
 	float protect = 0.33F;
 	float index_rate = 0.0F;
-	int32_t initial_chunk_duration_ms = 500;
+	int32_t initial_chunk_duration_ms = 250;
 	int32_t maximum_chunk_duration_ms = 2000;
 	int32_t inference_threads = 1;
 	int32_t obs_reserved_threads = 0;
