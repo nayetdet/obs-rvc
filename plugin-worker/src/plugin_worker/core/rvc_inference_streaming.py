@@ -16,7 +16,7 @@ def infer_window(vc: Any, audio: bytes, options: RVCInferenceOptionsSchema) -> t
     from rvc.modules.vc.pipeline import bh, ah, change_rms, cache_harvest_f0, input_audio_path2wav
 
     samples, rate = sf.read(BytesIO(audio), dtype="float32", always_2d=True)
-    samples = samples.mean(axis=1)
+    samples = samples[:, 0] if samples.shape[1] == 1 else samples.mean(axis=1)
     if rate != 16000:
         samples = librosa.resample(samples, orig_sr=rate, target_sr=16000)
 

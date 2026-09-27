@@ -44,19 +44,21 @@ size_t conversion_frame_count(uint32_t sample_rate, int32_t duration_ms, uint16_
 	return std::min(frame_count_for_duration(sample_rate, static_cast<uint32_t>(duration_ms)), capacity - context);
 }
 
-bool copy_audio_to_interleaved(const obs_audio_data &audio, uint16_t channels, std::vector<float> &samples)
+bool copy_audio_to_mono(const obs_audio_data &audio, uint16_t channels, std::vector<float> &samples)
 {
 	if (channels == 0U || channels > MAX_AV_PLANES)
 		return false;
 
-	samples.resize(static_cast<size_t>(audio.frames) * channels);
+	samples.resize(audio.frames);
 	for (uint32_t frame = 0U; frame < audio.frames; ++frame) {
+		double mixed = 0.0;
 		for (uint16_t channel = 0U; channel < channels; ++channel) {
 			if (audio.data[channel] == nullptr)
 				return false;
 			const float value = reinterpret_cast<const float *>(audio.data[channel])[frame];
-			samples[static_cast<size_t>(frame) * channels + channel] = std::isfinite(value) ? value : 0.0F;
+			mixed += std::isfinite(value) ? value : 0.0F;
 		}
+		samples[frame] = static_cast<float>(mixed / channels);
 	}
 	return true;
 }
@@ -205,7 +207,7 @@ void ConversionWorker::reset(const ConversionOptions &options)
 void ConversionWorker::submit(const obs_audio_data &audio, uint32_t sample_rate, uint16_t channels)
 {
 	thread_local std::vector<float> samples;
-	if (sample_rate == 0U || !copy_audio_to_interleaved(audio, channels, samples))
+	if (sample_rate == 0U || !copy_audio_to_mono(audio, channels, samples))
 		return;
 
 	std::lock_guard<std::mutex> lock(impl->mutex);
@@ -226,17 +228,16 @@ void ConversionWorker::submit(const obs_audio_data &audio, uint32_t sample_rate,
 
 	impl->input.append(samples);
 	const size_t maximum_samples =
-		(2U * conversion_frame_count(sample_rate, impl->active_chunk_duration_ms, channels) +
-		 frame_count_for_duration(sample_rate, kStreamLookaheadMs)) *
-		channels;
+		2U * conversion_frame_count(sample_rate, impl->active_chunk_duration_ms, channels) +
+		frame_count_for_duration(sample_rate, kStreamLookaheadMs);
 
 	if (impl->input.size() > maximum_samples) {
 		const size_t hop_frames = conversion_frame_count(sample_rate, impl->active_chunk_duration_ms, channels);
-		const size_t excess_frames = (impl->input.size() - maximum_samples + channels - 1U) / channels;
+		const size_t excess_frames = impl->input.size() - maximum_samples;
 		const size_t frames_to_discard =
 			hop_frames == 0U ? excess_frames
 					 : ((excess_frames + hop_frames - 1U) / hop_frames) * hop_frames;
-		impl->input.discard(frames_to_discard * channels);
+		impl->input.discard(frames_to_discard);
 		impl->discontinuity = true;
 	}
 
@@ -286,8 +287,12 @@ void ConversionWorker::Impl::run()
 	auto response = std::unique_ptr<rvc_audio_response_t>(new rvc_audio_response_t);
 	auto last_warning = std::chrono::steady_clock::time_point{};
 	uint64_t reported_underflows = 0U;
+	std::vector<float> input_samples;
+	std::vector<float> converted;
+	std::vector<float> stitched;
+	std::vector<uint8_t> wav;
+	std::array<std::vector<float>, MAX_AV_PLANES> planes;
 	for (;;) {
-		std::vector<float> input_samples;
 		ConversionOptions conversion_options;
 		uint32_t input_sample_rate = 0U;
 		uint16_t input_channels = 0U;
@@ -307,8 +312,7 @@ void ConversionWorker::Impl::run()
 
 				return frames > 0U &&
 				       input.size() >=
-					       (frames + frame_count_for_duration(sample_rate, kStreamLookaheadMs)) *
-						       channels &&
+					       frames + frame_count_for_duration(sample_rate, kStreamLookaheadMs) &&
 				       output.size() <= kOutputLowWaterBlocks * frames * channels;
 			});
 
@@ -326,23 +330,20 @@ void ConversionWorker::Impl::run()
 
 			hop_frames = frames;
 			context_frames = frame_count_for_duration(sample_rate, kStreamHistoryMs);
-			const size_t sample_count =
-				(frames + frame_count_for_duration(sample_rate, kStreamLookaheadMs)) * channels;
+			const size_t sample_count = frames + frame_count_for_duration(sample_rate, kStreamLookaheadMs);
 
 			input.copy_front(input_samples, sample_count);
-			input.discard(frames * channels);
+			input.discard(frames);
 			if (discontinuity) {
 				stream.reset();
 				discontinuity = false;
 			}
 		}
 
-		input_samples = stream.window(input_samples, hop_frames, context_frames, input_channels);
-		std::array<std::vector<float>, MAX_AV_PLANES> planes;
+		input_samples = stream.window(input_samples, hop_frames, context_frames, 1U);
 		obs_audio_data audio{};
-		make_planar_audio(input_samples, input_channels, planes, audio);
-		std::vector<uint8_t> wav;
-		if (!rvc::utils::encode_wav(&audio, input_sample_rate, input_channels, wav)) {
+		make_planar_audio(input_samples, 1U, planes, audio);
+		if (!rvc::utils::encode_wav(&audio, input_sample_rate, 1U, wav)) {
 			stream.reset();
 			blog(LOG_ERROR, "[obs-rvc] Unable to encode audio for conversion.");
 			continue;
@@ -374,15 +375,13 @@ void ConversionWorker::Impl::run()
 			continue;
 		}
 
-		const uint32_t input_frames = static_cast<uint32_t>(input_samples.size() / input_channels);
-		std::vector<float> converted;
+		const uint32_t input_frames = static_cast<uint32_t>(input_samples.size());
 		if (!decode_to_input_format(*response, input_sample_rate, input_channels, input_frames, converted)) {
 			stream.reset();
 			blog(LOG_ERROR, "[obs-rvc] Worker returned invalid converted audio.");
 			continue;
 		}
 
-		std::vector<float> stitched;
 		if (!stream.stitch(converted, hop_frames, context_frames,
 				   frame_count_for_duration(input_sample_rate, kStreamOverlapMs),
 				   frame_count_for_duration(input_sample_rate, kStreamSearchMs), input_channels,
