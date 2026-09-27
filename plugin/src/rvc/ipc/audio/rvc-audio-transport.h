@@ -26,7 +26,6 @@ typedef struct rvc_audio_request {
 	int32_t resample_sr;
 	float rms_mix_rate;
 	float protect;
-	float index_rate;
 	uint8_t audio[RVC_AUDIO_MAX_INPUT_BYTES];
 } rvc_audio_request_t;
 
@@ -40,13 +39,13 @@ typedef struct rvc_audio_response {
 } rvc_audio_response_t;
 
 #if defined(__cplusplus)
-static_assert(sizeof(rvc_audio_request_t) == 786624U, "Audio request layout must match Python.");
-static_assert(offsetof(rvc_audio_request_t, audio) == 188U, "Audio request layout must match Python.");
+static_assert(sizeof(rvc_audio_request_t) == 786616U, "Audio request layout must match Python.");
+static_assert(offsetof(rvc_audio_request_t, audio) == 184U, "Audio request layout must match Python.");
 static_assert(sizeof(rvc_audio_response_t) == 787472U, "Audio response layout must match Python.");
 static_assert(offsetof(rvc_audio_response_t, audio) == 1040U, "Audio response layout must match Python.");
 #else
-_Static_assert(sizeof(rvc_audio_request_t) == 786624U, "Audio request layout must match Python.");
-_Static_assert(offsetof(rvc_audio_request_t, audio) == 188U, "Audio request layout must match Python.");
+_Static_assert(sizeof(rvc_audio_request_t) == 786616U, "Audio request layout must match Python.");
+_Static_assert(offsetof(rvc_audio_request_t, audio) == 184U, "Audio request layout must match Python.");
 _Static_assert(sizeof(rvc_audio_response_t) == 787472U, "Audio response layout must match Python.");
 _Static_assert(offsetof(rvc_audio_response_t, audio) == 1040U, "Audio response layout must match Python.");
 #endif

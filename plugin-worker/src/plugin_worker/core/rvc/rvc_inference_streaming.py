@@ -64,7 +64,6 @@ def infer_window(
         started = perf_counter()
         result = synthesize(vc, features, speaker, samples, pitch, pitchf, options, torch)
         timings["generator"] = perf_counter() - started
-        timings["vc_overhead"] = 0.0
 
     started = perf_counter()
     if options.rms_mix_rate < 1.0:
@@ -87,18 +86,14 @@ def extract_hubert_features(vc: Any, samples: np.ndarray, torch: Any) -> Any:
         features = features.mean(-1)
 
     features = features.view(1, -1)
-    padding_mask = torch.zeros(features.shape, device=vc.pipeline.device, dtype=torch.bool)
-    inputs = {
-        "source": features.to(vc.pipeline.device),
-        "padding_mask": padding_mask,
-        "output_layer": 9 if vc.version == "v1" else 12,
-    }
-
     with vc.hubert_lock:
         with torch.no_grad():
-            logits = vc.hubert_model.extract_features(**inputs)
-            output = vc.hubert_model.final_proj(logits[0]) if vc.version == "v1" else logits[0]
-    return output
+            logits = vc.hubert_model.extract_features(
+                source=features.to(vc.pipeline.device),
+                padding_mask=torch.zeros(features.shape, device=vc.pipeline.device, dtype=torch.bool),
+                output_layer=9 if vc.version == "v1" else 12,
+            )
+            return vc.hubert_model.final_proj(logits[0]) if vc.version == "v1" else logits[0]
 
 
 def synthesize(
@@ -113,27 +108,12 @@ def synthesize(
 ) -> np.ndarray:
     import torch.nn.functional as functional
 
-    if options.protect < 0.5 and pitch is not None and pitchf is not None:
+    protect_unvoiced = options.protect < 0.5 and pitch is not None and pitchf is not None
+    if protect_unvoiced:
         original_features = features.clone()
 
-    if vc.index is not None and vc.big_npy is not None and options.index_rate != 0.0:
-        vectors = features[0].cpu().numpy()
-        if vc.config.is_half:
-            vectors = vectors.astype("float32")
-
-        score, indices = vc.index.search(vectors, k=8)
-        weights = np.square(1.0 / score)
-        weights /= weights.sum(axis=1, keepdims=True)
-        vectors = np.sum(vc.big_npy[indices] * np.expand_dims(weights, axis=2), axis=1)
-        if vc.config.is_half:
-            vectors = vectors.astype("float16")
-
-        features = torch.from_numpy(vectors).unsqueeze(0).to(vc.pipeline.device) * options.index_rate + (
-            1.0 - options.index_rate
-        ) * features
-
     features = functional.interpolate(features.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
-    if options.protect < 0.5 and pitch is not None and pitchf is not None:
+    if protect_unvoiced:
         original_features = functional.interpolate(original_features.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
 
     length = min(features.shape[1], len(samples) // vc.pipeline.window)
@@ -141,7 +121,7 @@ def synthesize(
         pitch = pitch[:, :length]
         pitchf = pitchf[:, :length]
 
-    if options.protect < 0.5 and pitch is not None and pitchf is not None:
+    if protect_unvoiced:
         protection = pitchf.clone()
         protection[pitchf > 0] = 1.0
         protection[pitchf < 1] = options.protect
@@ -149,23 +129,17 @@ def synthesize(
         features = features * protection + original_features * (1.0 - protection)
         features = features.to(original_features.dtype)
 
-    length_tensor = torch.tensor([length], device=vc.pipeline.device).long()
-    arguments = (features, length_tensor, pitch, pitchf, speaker) if pitch is not None and pitchf is not None else (
-        features,
-        length_tensor,
-        speaker,
-    )
-
     with torch.no_grad():
-        output = vc.net_g.infer(*arguments)[0][0, 0].data.cpu().float().numpy()
-    return output
+        length_tensor = torch.tensor([length], device=vc.pipeline.device).long()
+        if pitch is not None and pitchf is not None:
+            return vc.net_g.infer(features, length_tensor, pitch, pitchf, speaker)[0][0, 0].data.cpu().float().numpy()
+        return vc.net_g.infer(features, length_tensor, speaker)[0][0, 0].data.cpu().float().numpy()
 
 
 def pitch_tensors(
     stream: Any, coarse: np.ndarray, fine: np.ndarray, length: int, device: Any, torch: Any
 ) -> tuple[Any, Any]:
-    key = str(device)
-    buffers = stream.pitch_buffers.get(key)
+    buffers = stream.pitch_buffer
     if buffers is None or buffers[0].shape[1] < length:
         capacity = 1 << max(1, length - 1).bit_length()
         buffers = (
@@ -173,7 +147,7 @@ def pitch_tensors(
             torch.empty((1, capacity), device=device, dtype=torch.float32),
         )
 
-        stream.pitch_buffers[key] = buffers
+        stream.pitch_buffer = buffers
 
     buffers[0][0, :length].copy_(torch.from_numpy(np.ascontiguousarray(coarse[:length])))
     buffers[1][0, :length].copy_(torch.from_numpy(np.ascontiguousarray(fine[:length], dtype=np.float32)))

@@ -28,7 +28,7 @@ def main() -> None:
         "--additional-hooks-dir",
         str(ROOT / "scripts" / "pyinstaller-hooks"),
         "--runtime-hook",
-        str(ROOT / "scripts" / "pyinstaller-hooks" / "fairseq-hook.py"),
+        str(ROOT / "scripts" / "runtime-hooks" / "hook-fairseq.py"),
         "--distpath",
         str(args.output.resolve()),
         "--workpath",

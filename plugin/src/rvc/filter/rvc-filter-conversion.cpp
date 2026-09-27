@@ -20,8 +20,6 @@ namespace rvc::filter {
 namespace {
 constexpr uint32_t kWarmupConversionTimeoutMs = 180000U;
 constexpr uint32_t kConversionTimeoutMs = 60000U;
-constexpr size_t kInitialOutputBlocks = 1U;
-constexpr size_t kOutputLowWaterBlocks = 1U;
 
 std::mutex workers_mutex;
 std::set<ConversionWorker *> workers;
@@ -33,7 +31,7 @@ size_t frame_count_for_duration(uint32_t sample_rate, uint32_t duration_ms)
 	return static_cast<size_t>(sample_rate) * duration_ms / 1000U;
 }
 
-size_t conversion_frame_count(uint32_t sample_rate, int32_t duration_ms, uint16_t)
+size_t conversion_frame_count(uint32_t sample_rate, int32_t duration_ms)
 {
 	if (duration_ms <= 0)
 		return 0U;
@@ -48,13 +46,15 @@ bool copy_audio_to_mono(const obs_audio_data &audio, uint16_t channels, std::vec
 {
 	if (channels == 0U || channels > MAX_AV_PLANES)
 		return false;
+	for (uint16_t channel = 0U; channel < channels; ++channel) {
+		if (audio.data[channel] == nullptr)
+			return false;
+	}
 
 	samples.resize(audio.frames);
 	for (uint32_t frame = 0U; frame < audio.frames; ++frame) {
 		double mixed = 0.0;
 		for (uint16_t channel = 0U; channel < channels; ++channel) {
-			if (audio.data[channel] == nullptr)
-				return false;
 			const float value = reinterpret_cast<const float *>(audio.data[channel])[frame];
 			mixed += std::isfinite(value) ? value : 0.0F;
 		}
@@ -88,9 +88,9 @@ bool decode_to_input_format(const rvc_audio_response_t &response, uint32_t input
 		int16_t second_sample = 0;
 		std::memcpy(&first_sample, response.audio + first * sizeof(int16_t), sizeof(int16_t));
 		std::memcpy(&second_sample, response.audio + second * sizeof(int16_t), sizeof(int16_t));
+		const float a = static_cast<float>(first_sample) / 32768.0F;
+		const float b = static_cast<float>(second_sample) / 32768.0F;
 		for (uint16_t channel = 0U; channel < input_channels; ++channel) {
-			const float a = static_cast<float>(first_sample) / 32768.0F;
-			const float b = static_cast<float>(second_sample) / 32768.0F;
 			output[static_cast<size_t>(frame) * input_channels + channel] = a + (b - a) * fraction;
 		}
 	}
@@ -216,12 +216,11 @@ void ConversionWorker::submit(const obs_audio_data &audio, uint32_t sample_rate,
 	}
 
 	impl->input.append(samples);
-	const size_t maximum_samples =
-		2U * conversion_frame_count(sample_rate, impl->active_chunk_duration_ms, channels) +
-		frame_count_for_duration(sample_rate, kStreamLookaheadMs);
+	const size_t maximum_samples = 2U * conversion_frame_count(sample_rate, impl->active_chunk_duration_ms) +
+				       frame_count_for_duration(sample_rate, kStreamLookaheadMs);
 
 	if (impl->input.size() > maximum_samples) {
-		const size_t hop_frames = conversion_frame_count(sample_rate, impl->active_chunk_duration_ms, channels);
+		const size_t hop_frames = conversion_frame_count(sample_rate, impl->active_chunk_duration_ms);
 		const size_t excess_frames = impl->input.size() - maximum_samples;
 		const size_t frames_to_discard =
 			hop_frames == 0U ? excess_frames
@@ -234,7 +233,7 @@ void ConversionWorker::submit(const obs_audio_data &audio, uint32_t sample_rate,
 	impl->work_ready.notify_one();
 }
 
-bool ConversionWorker::receive(obs_audio_data &audio, uint16_t channels)
+bool ConversionWorker::receive(const obs_audio_data &audio, uint16_t channels)
 {
 	thread_local std::vector<float> samples;
 	float playback_gain = 0.0F;
@@ -247,8 +246,7 @@ bool ConversionWorker::receive(obs_audio_data &audio, uint16_t channels)
 
 		if (!impl->playback_started) {
 			const size_t initial_buffer_frames =
-				conversion_frame_count(impl->sample_rate, impl->startup_chunk_duration_ms, channels) *
-				kInitialOutputBlocks;
+				conversion_frame_count(impl->sample_rate, impl->startup_chunk_duration_ms);
 			if (impl->output.size() < initial_buffer_frames * channels)
 				return false;
 			impl->playback_started = true;
@@ -280,6 +278,7 @@ bool ConversionWorker::receive(obs_audio_data &audio, uint16_t channels)
 		if (impl->generation == playback_generation)
 			impl->playback_gain = playback_gain;
 	}
+
 	impl->work_ready.notify_one();
 	return true;
 }
@@ -311,13 +310,12 @@ void ConversionWorker::Impl::run()
 				if (stopping || !configured || sample_rate == 0U || channels == 0U)
 					return stopping;
 
-				const size_t frames =
-					conversion_frame_count(sample_rate, active_chunk_duration_ms, channels);
+				const size_t frames = conversion_frame_count(sample_rate, active_chunk_duration_ms);
 
 				return frames > 0U &&
 				       input.size() >=
 					       frames + frame_count_for_duration(sample_rate, kStreamLookaheadMs) &&
-				       output.size() <= kOutputLowWaterBlocks * frames * channels;
+				       output.size() <= frames * channels;
 			});
 
 			if (stopping)
@@ -326,11 +324,9 @@ void ConversionWorker::Impl::run()
 			input_sample_rate = sample_rate;
 			input_channels = channels;
 			conversion_options = options;
-			conversion_options.initial_chunk_duration_ms = active_chunk_duration_ms;
 			input_generation = generation;
 			first_conversion = !has_completed_conversion;
-			const size_t frames = conversion_frame_count(
-				sample_rate, conversion_options.initial_chunk_duration_ms, channels);
+			const size_t frames = conversion_frame_count(sample_rate, active_chunk_duration_ms);
 
 			hop_frames = frames;
 			context_frames = frame_count_for_duration(sample_rate, kStreamHistoryMs);
@@ -368,7 +364,6 @@ void ConversionWorker::Impl::run()
 									  : static_cast<int32_t>(input_sample_rate);
 		request->rms_mix_rate = conversion_options.rms_mix_rate;
 		request->protect = conversion_options.protect;
-		request->index_rate = conversion_options.index_rate;
 		std::memcpy(request->audio, pcm.data(), request->audio_size);
 
 		const auto started_at = std::chrono::steady_clock::now();
@@ -428,7 +423,7 @@ void ConversionWorker::Impl::run()
 		int32_t increased_duration = 0;
 		if (realtime_factor > 1.0 && !first_conversion) {
 			std::lock_guard<std::mutex> lock(mutex);
-			if (generation == input_generation && active_chunk_duration_ms < maximum_chunk_duration_ms) {
+			if (active_chunk_duration_ms < maximum_chunk_duration_ms) {
 				active_chunk_duration_ms =
 					std::min(maximum_chunk_duration_ms, active_chunk_duration_ms + 250);
 				increased_duration = active_chunk_duration_ms;

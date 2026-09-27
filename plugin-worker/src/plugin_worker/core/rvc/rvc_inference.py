@@ -19,7 +19,6 @@ from ...runtime import Runtime, runtime
 from ...utils.compatibility_utils import configure_torch
 from ...utils.inference_utils import bake_weight_norm
 from .rvc_inference_streaming import infer_window
-from .rvc_index import load_rvc_index
 from ..streaming.streaming_highpass_filter import StreamingHighpassFilter
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,6 @@ class RVCInference:
                     hubert_path=str(hubert_path),
                     rmvpe_root=str(rmvpe_path.parent),
                     weight_root=str(model_path.parent),
-                    index_root=str(model_path.parent),
                 )
 
                 effective_threads = configure_torch(runtime.inference_threads, runtime.obs_reserved_threads)
@@ -94,11 +92,7 @@ class RVCInference:
                 logger.info("Loading RVC model: %s", model_path)
                 try:
                     vc: Any = self.vc_class()
-                    _, _, index_path = vc.get_vc(key)
-                    vc.index_path = index_path
-                    vc.index = None
-                    vc.big_npy = None
-                    vc.index_load_attempted = False
+                    vc.get_vc(key)
                     vc.speakers = {}
                     from rvc.modules.vc.pipeline import ah, bh
 
@@ -130,14 +124,6 @@ class RVCInference:
                 self.models[key] = vc
 
             vc: Any = self.models[key]
-            if not vc.index_load_attempted and vc.index_path and options.index_rate > 0.0:
-                vc.index_load_attempted = True
-                try:
-                    vc.index, vc.big_npy = load_rvc_index(vc.index_path, vc.version)
-                    logger.info("Loaded RVC index: %s (%d vectors)", vc.index_path, vc.index.ntotal)
-                except Exception:
-                    logger.warning("Unable to load RVC index: %s", vc.index_path, exc_info=True)
-
             model_lock: threading.Lock = self.model_locks.setdefault(key, threading.Lock())
 
         with model_lock:

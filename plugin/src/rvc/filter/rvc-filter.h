@@ -3,10 +3,8 @@
 #include "rvc/ipc/rvc-ipc.h"
 
 #ifdef __cplusplus
-#include <cstdint>
 #include <memory>
 #include <mutex>
-#include <string>
 
 namespace rvc::filter {
 class ConversionWorker;
@@ -15,19 +13,6 @@ class ConversionWorker;
 struct RvcFilterData {
 	std::mutex mutex;
 	std::mutex update_mutex;
-	std::string model;
-	std::string f0_method;
-	int32_t speaker = 0;
-	int32_t f0_up_key = 0;
-	int32_t filter_radius = 3;
-	int32_t resample_sr = 0;
-	float rms_mix_rate = 1.0F;
-	float protect = 0.33F;
-	float index_rate = 0.0F;
-	int32_t initial_chunk_duration_ms = 250;
-	int32_t maximum_chunk_duration_ms = 2000;
-	int32_t inference_threads = 1;
-	int32_t obs_reserved_threads = 0;
 	bool configured = false;
 	std::unique_ptr<rvc::filter::ConversionWorker> conversion_worker;
 };

@@ -9,11 +9,7 @@
     {
       "name": "template",
       "hidden": true,
-      "cacheVariables": {
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false,
-        "CMAKE_EXPORT_COMPILE_COMMANDS": true
-      }
+      "cacheVariables": {"CMAKE_EXPORT_COMPILE_COMMANDS": true}
     },
     {
       "name": "macos",

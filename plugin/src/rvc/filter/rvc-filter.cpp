@@ -26,7 +26,6 @@ constexpr char kFilterRadius[] = "filter_radius";
 constexpr char kResampleSr[] = "resample_sr";
 constexpr char kRmsMixRate[] = "rms_mix_rate";
 constexpr char kProtect[] = "protect";
-constexpr char kIndexRate[] = "index_rate";
 constexpr char kChunkDurationMs[] = "chunk_duration_ms";
 constexpr char kInitialChunkDurationMs[] = "initial_chunk_duration_ms";
 constexpr char kMaximumChunkDurationMs[] = "maximum_chunk_duration_ms";
@@ -77,7 +76,6 @@ void rvc_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, kResampleSr, 0);
 	obs_data_set_default_double(settings, kRmsMixRate, 1.0);
 	obs_data_set_default_double(settings, kProtect, 0.33);
-	obs_data_set_default_double(settings, kIndexRate, 0.0);
 	obs_data_set_default_int(settings, kChunkDurationMs, 250);
 	obs_data_set_default_int(settings, kInitialChunkDurationMs, 250);
 	obs_data_set_default_int(settings, kMaximumChunkDurationMs, 2000);
@@ -131,7 +129,6 @@ obs_properties_t *rvc_filter_properties(void *)
 	obs_properties_add_int(properties, kResampleSr, "Resample rate", 0, 192000, 1000);
 	obs_properties_add_float_slider(properties, kRmsMixRate, "RMS mix rate", 0.0, 1.0, 0.01);
 	obs_properties_add_float_slider(properties, kProtect, "Protect", 0.0, 0.5, 0.01);
-	obs_properties_add_float_slider(properties, kIndexRate, "Index rate", 0.0, 1.0, 0.01);
 	obs_properties_add_int(properties, kInitialChunkDurationMs, "Initial conversion block (ms)", 250, 2000, 10);
 	obs_properties_add_int(properties, kMaximumChunkDurationMs, "Maximum conversion block (ms)", 250, 2000, 10);
 	const int32_t total_threads = static_cast<int32_t>(rvc::utils::available_cpu_count());
@@ -208,40 +205,35 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 	}
 
 	std::lock_guard<std::mutex> lock(data->mutex);
-	data->inference_threads = inference_threads;
-	data->obs_reserved_threads = obs_reserved_threads;
-	data->model = model != nullptr ? model : "";
-	data->f0_method = f0_method != nullptr ? f0_method : "rmvpe";
-	data->speaker = static_cast<int32_t>(obs_data_get_int(settings, kSpeaker));
-	data->f0_up_key = static_cast<int32_t>(obs_data_get_int(settings, kF0UpKey));
-	data->filter_radius = static_cast<int32_t>(obs_data_get_int(settings, kFilterRadius));
-	data->resample_sr = static_cast<int32_t>(obs_data_get_int(settings, kResampleSr));
-	data->rms_mix_rate = static_cast<float>(obs_data_get_double(settings, kRmsMixRate));
-	data->protect = static_cast<float>(obs_data_get_double(settings, kProtect));
-	data->index_rate = static_cast<float>(obs_data_get_double(settings, kIndexRate));
 	const int64_t saved_initial_duration = obs_data_has_user_value(settings, kInitialChunkDurationMs)
 						       ? obs_data_get_int(settings, kInitialChunkDurationMs)
 						       : obs_data_get_int(settings, kChunkDurationMs);
-	data->initial_chunk_duration_ms =
+	const int32_t initial_chunk_duration_ms =
 		saved_initial_duration > 2000
 			? 250
 			: static_cast<int32_t>(std::clamp<int64_t>(saved_initial_duration, 250, 2000));
-	const int64_t saved_maximum_duration = obs_data_get_int(settings, kMaximumChunkDurationMs);
-	data->maximum_chunk_duration_ms = static_cast<int32_t>(
-		std::clamp<int64_t>(saved_maximum_duration, data->initial_chunk_duration_ms, 2000));
-	obs_data_set_int(settings, kInitialChunkDurationMs, data->initial_chunk_duration_ms);
-	obs_data_set_int(settings, kMaximumChunkDurationMs, data->maximum_chunk_duration_ms);
+	const rvc::filter::ConversionOptions options{
+		model != nullptr ? model : "",
+		f0_method != nullptr ? f0_method : "rmvpe",
+		static_cast<int32_t>(obs_data_get_int(settings, kSpeaker)),
+		static_cast<int32_t>(obs_data_get_int(settings, kF0UpKey)),
+		static_cast<int32_t>(obs_data_get_int(settings, kFilterRadius)),
+		static_cast<int32_t>(obs_data_get_int(settings, kResampleSr)),
+		static_cast<float>(obs_data_get_double(settings, kRmsMixRate)),
+		static_cast<float>(obs_data_get_double(settings, kProtect)),
+		initial_chunk_duration_ms,
+		static_cast<int32_t>(std::clamp<int64_t>(obs_data_get_int(settings, kMaximumChunkDurationMs),
+							 initial_chunk_duration_ms, 2000)),
+	};
+	obs_data_set_int(settings, kInitialChunkDurationMs, options.initial_chunk_duration_ms);
+	obs_data_set_int(settings, kMaximumChunkDurationMs, options.maximum_chunk_duration_ms);
 	data->configured = true;
-	if (data->conversion_worker) {
-		data->conversion_worker->reset({data->model, data->f0_method, data->speaker, data->f0_up_key,
-						data->filter_radius, data->resample_sr, data->rms_mix_rate,
-						data->protect, data->index_rate, data->initial_chunk_duration_ms,
-						data->maximum_chunk_duration_ms});
-	}
+	if (data->conversion_worker)
+		data->conversion_worker->reset(options);
 	obs_log(LOG_INFO, "RVC filter configured; conversion starts at %d ms and can grow to %d ms.",
-		data->initial_chunk_duration_ms, data->maximum_chunk_duration_ms);
-	obs_log(LOG_INFO, "RVC worker configured to use %d CPU threads; %d reserved for OBS.", data->inference_threads,
-		data->obs_reserved_threads);
+		options.initial_chunk_duration_ms, options.maximum_chunk_duration_ms);
+	obs_log(LOG_INFO, "RVC worker configured to use %d CPU threads; %d reserved for OBS.", inference_threads,
+		obs_reserved_threads);
 }
 
 void *rvc_filter_create(obs_data_t *settings, obs_source_t *)

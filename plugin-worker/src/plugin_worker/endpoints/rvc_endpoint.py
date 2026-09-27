@@ -30,7 +30,6 @@ class RVCEndpoint(BaseEndpoint[AudioRequestSchema, AudioResponseSchema]):
         )
 
         self.rvc = rvc
-        self.last_unexpected_error: str | None = None
         self.executor = ThreadPoolExecutor(max_workers=settings.parallel_workers, thread_name_prefix="rvc")
         self.pending: set[Future[None]] = set()
         self.pending_lock = Lock()
@@ -77,7 +76,6 @@ class RVCEndpoint(BaseEndpoint[AudioRequestSchema, AudioResponseSchema]):
                 resample_sr=request.resample_sr,
                 rms_mix_rate=request.rms_mix_rate,
                 protect=request.protect,
-                index_rate=request.index_rate,
             )
 
             output: np.ndarray
@@ -93,15 +91,11 @@ class RVCEndpoint(BaseEndpoint[AudioRequestSchema, AudioResponseSchema]):
 
             if output.nbytes > Settings.max_output_bytes:
                 return audio_error("Converted audio exceeds the IPC buffer.")
-            self.last_unexpected_error = None
             return audio_success(output, sample_rate)
         except ValidationError:
             return audio_error("Inference options are invalid.")
         except RVCInferenceException as exc:
             return audio_error(str(exc))
         except Exception as exc:
-            message = f"{type(exc).__name__}: {exc}"
-            if message != self.last_unexpected_error:
-                logger.exception("Unexpected error while converting audio")
-                self.last_unexpected_error = message
+            logger.exception("Unexpected error while converting audio")
             return audio_error(f"RVC conversion failed: {exc}")
