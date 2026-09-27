@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from ..exceptions.rvc_inference_exceptions import RVCInferenceException
 
 from ..core.rvc.rvc_inference import RVCInference
@@ -30,11 +28,13 @@ class SettingsEndpoint(BaseEndpoint[SettingsRequestSchema, SettingsResponseSchem
         if not hubert_path or not rmvpe_path:
             return settings_error("Worker settings are invalid.")
 
-        runtime.model = decode_c_string(request.model) or None
-        runtime.hubert_path = Path(hubert_path)
-        runtime.rmvpe_path = Path(rmvpe_path)
-        runtime.inference_threads = max(1, min(256, int(request.inference_threads)))
-        runtime.obs_reserved_threads = max(0, min(256, int(request.obs_reserved_threads)))
+        runtime.configure(
+            model=decode_c_string(request.model) or None,
+            hubert_path=hubert_path,
+            rmvpe_path=rmvpe_path,
+            inference_threads=request.inference_threads,
+            obs_reserved_threads=request.obs_reserved_threads,
+        )
 
         self.rvc.reset()
         try:

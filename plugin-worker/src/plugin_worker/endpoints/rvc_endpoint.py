@@ -12,7 +12,7 @@ from ..core.rvc.rvc_inference import RVCInference
 from ..exceptions.rvc_inference_exceptions import RVCInferenceException
 from ..mappers.audio_mapper import audio_error, audio_success
 from ..schemas.requests.audio_request_schema import AudioRequestSchema
-from ..runtime import Runtime
+from ..schemas.internal.inference_options_schema import InferenceOptionsSchema
 from ..schemas.responses.audio_response_schema import AudioResponseSchema
 from ..settings import Settings, settings
 from ..utils.text_utils import decode_c_string
@@ -68,7 +68,7 @@ class RVCEndpoint(BaseEndpoint[AudioRequestSchema, AudioResponseSchema]):
             return audio_error("Audio format is invalid.")
 
         try:
-            options: Runtime.Options = Runtime.Options(
+            options = InferenceOptionsSchema(
                 speaker=request.speaker,
                 f0_up_key=request.f0_up_key,
                 f0_method=decode_c_string(request.f0_method),

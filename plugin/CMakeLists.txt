@@ -133,17 +133,21 @@ endif()
 set(WORKER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../plugin-worker")
 set(WORKER_BUNDLE_DIR "${CMAKE_CURRENT_BINARY_DIR}/worker-bundle")
 set(WORKER_BUNDLE_STAMP "${WORKER_BUNDLE_DIR}/complete")
-file(GLOB_RECURSE WORKER_SOURCES CONFIGURE_DEPENDS "${WORKER_DIR}/src/*.py" "${WORKER_DIR}/scripts/*.py")
+file(GLOB_RECURSE WORKER_SOURCES CONFIGURE_DEPENDS "${WORKER_DIR}/src/*.py" "${WORKER_DIR}/packaging/*.py")
 find_program(UV_EXECUTABLE uv REQUIRED)
+
+set(UV_PYTHON_ARGS)
+set(WORKER_ENV_ARGS)
 if(UNIX AND NOT APPLE)
   find_program(WORKER_PYTHON NAMES python3.12 python3 PATHS /usr/bin NO_DEFAULT_PATH REQUIRED)
-  set(UV_PYTHON_ARGS --python "${WORKER_PYTHON}")
+  list(APPEND UV_PYTHON_ARGS --python "${WORKER_PYTHON}")
   execute_process(
     COMMAND "${WORKER_PYTHON}" -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')"
     OUTPUT_VARIABLE WORKER_PYTHON_LIBDIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
     COMMAND_ERROR_IS_FATAL ANY
   )
+  list(APPEND WORKER_ENV_ARGS "LD_LIBRARY_PATH=${WORKER_PYTHON_LIBDIR}:$ENV{LD_LIBRARY_PATH}")
 endif()
 
 set(PYINSTALLER_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/pyinstaller-cache")
@@ -152,9 +156,9 @@ add_custom_command(
   OUTPUT "${WORKER_BUNDLE_STAMP}"
   COMMAND
     "${CMAKE_COMMAND}" -E env --unset=CC --unset=CXX "PYINSTALLER_CONFIG_DIR=${PYINSTALLER_CONFIG_DIR}"
-    "LD_LIBRARY_PATH=${WORKER_PYTHON_LIBDIR}:$ENV{LD_LIBRARY_PATH}" "${UV_EXECUTABLE}" run --locked --project
-    "${WORKER_DIR}" ${UV_PYTHON_ARGS} --no-build-isolation-package fairseq --with "pyinstaller>=6.11,<7" python
-    "${WORKER_DIR}/scripts/build_bundle.py" --output "${WORKER_BUNDLE_DIR}"
+    ${WORKER_ENV_ARGS} "${UV_EXECUTABLE}" run --locked --project "${WORKER_DIR}" ${UV_PYTHON_ARGS}
+    --no-build-isolation-package fairseq --with "pyinstaller>=6.11,<7" python "${WORKER_DIR}/packaging/bundle.py"
+    --output "${WORKER_BUNDLE_DIR}"
   DEPENDS "${WORKER_DIR}/pyproject.toml" "${WORKER_DIR}/uv.lock" ${WORKER_SOURCES}
   COMMAND "${CMAKE_COMMAND}" -E touch "${WORKER_BUNDLE_STAMP}"
   WORKING_DIRECTORY "${WORKER_DIR}"

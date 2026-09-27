@@ -5,11 +5,11 @@ from typing import Any
 
 import numpy as np
 
-from ...runtime import Runtime
+from ...schemas.internal.inference_options_schema import InferenceOptionsSchema
 
 
 def infer_window(
-    vc: Any, stream: Any, audio: np.ndarray, rate: int, options: Runtime.Options, index: tuple[Any, np.ndarray] | None
+    vc: Any, stream: Any, audio: np.ndarray, rate: int, options: InferenceOptionsSchema, index: tuple[Any, np.ndarray] | None
 ) -> tuple[np.ndarray, int, dict[str, float]]:
     import torch
     from rvc.modules.vc.pipeline import change_rms, cache_harvest_f0, input_audio_path2wav
@@ -47,6 +47,7 @@ def infer_window(
                 if options.f0_method == "harvest":
                     input_audio_path2wav.pop(pitch_key, None)
                     cache_harvest_f0.cache_clear()
+
             length = len(samples) // pipeline.window
             pitch, pitchf = pitch_tensors(stream, coarse, fine, length, pipeline.device, torch)
             timings["f0"] = perf_counter() - started
@@ -75,6 +76,7 @@ def infer_window(
     if target_rate != vc.tgt_sr:
         output_overlap = round(input_overlap * vc.tgt_sr / rate)
         result = stream.output_resampler.resample(result, vc.tgt_sr, target_rate, output_overlap)
+
     timings["output_resample"] = perf_counter() - started
     return np.asarray(result, dtype=np.float32), int(target_rate), timings
 
@@ -93,6 +95,7 @@ def extract_hubert_features(vc: Any, samples: np.ndarray, torch: Any) -> Any:
                 padding_mask=torch.zeros(features.shape, device=vc.pipeline.device, dtype=torch.bool),
                 output_layer=9 if vc.version == "v1" else 12,
             )
+
             return vc.hubert_model.final_proj(logits[0]) if vc.version == "v1" else logits[0]
 
 
@@ -103,7 +106,7 @@ def synthesize(
     samples: np.ndarray,
     pitch: Any,
     pitchf: Any,
-    options: Runtime.Options,
+    options: InferenceOptionsSchema,
     index: tuple[Any, np.ndarray] | None,
     torch: Any,
 ) -> np.ndarray:
@@ -122,6 +125,7 @@ def synthesize(
         retrieved = np.sum(vectors[indices] * np.expand_dims(weights, axis=2), axis=1)
         if vc.config.is_half:
             retrieved = retrieved.astype("float16")
+
         features = torch.from_numpy(retrieved).unsqueeze(0).to(vc.pipeline.device) * options.index_rate + (
             1.0 - options.index_rate
         ) * features

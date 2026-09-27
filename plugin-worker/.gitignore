@@ -3,7 +3,7 @@
 
 # Except for worker project files
 !/src
-!/scripts
+!/packaging
 !/tests
 !.gitignore
 !LICENSE

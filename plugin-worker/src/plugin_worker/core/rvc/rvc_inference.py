@@ -16,7 +16,10 @@ from ...exceptions.rvc_inference_exceptions import (
     RVCIndexException,
     RVCInferenceModelNotFoundException,
 )
-from ...runtime import Runtime, runtime
+from ...runtime import runtime
+from ...schemas.internal.audio_stream_schema import AudioStreamSchema
+from ...schemas.internal.hubert_model_schema import HubertModelSchema
+from ...schemas.internal.inference_options_schema import InferenceOptionsSchema
 from ...utils.compatibility_utils import configure_torch
 from ...utils.hardware_utils import is_gpu_accelerated_device
 from ...utils.inference_utils import bake_weight_norm
@@ -32,7 +35,7 @@ class RVCInference:
         self.models: dict[str, Any] = {}
         self.model_errors: dict[str, str] = {}
         self.model_locks: dict[str, threading.Lock] = {}
-        self.hubert_models: dict[tuple[str, str, bool], Runtime.Hubert] = {}
+        self.hubert_models: dict[tuple[str, str, bool], HubertModelSchema] = {}
         self.indices: dict[tuple[str, str], tuple[Any, np.ndarray]] = {}
         self.lock = threading.Lock()
         self.vc_class: Any = None
@@ -49,18 +52,19 @@ class RVCInference:
         stream_generation: int,
         model: str | None,
         index_path: str | None,
-        options: Runtime.Options,
+        options: InferenceOptionsSchema,
     ) -> tuple[np.ndarray, int]:
         if np.asarray(audio).size == 0 or sample_rate <= 0:
             raise RVCAudioException()
 
-        if runtime.hubert_path is None or runtime.rmvpe_path is None:
+        configuration = runtime.snapshot()
+        if configuration.hubert_path is None or configuration.rmvpe_path is None:
             raise RVCConfigurationException("HuBERT and RMVPE paths must be configured.")
 
-        if not model and not runtime.model:
+        if not model and not configuration.model:
             raise RVCInferenceModelNotFoundException()
 
-        model_path = Path(model or runtime.model or "").expanduser().resolve()
+        model_path = Path(model or configuration.model or "").expanduser().resolve()
         if model_path.suffix.lower() != ".pth" or not model_path.is_file():
             raise RVCInferenceModelNotFoundException()
 
@@ -72,8 +76,8 @@ class RVCInference:
 
         with self.lock:
             if self.vc_class is None:
-                hubert_path = runtime.hubert_path.expanduser().resolve()
-                rmvpe_path = runtime.rmvpe_path.expanduser().resolve()
+                hubert_path = configuration.hubert_path.expanduser().resolve()
+                rmvpe_path = configuration.rmvpe_path.expanduser().resolve()
                 if not hubert_path.is_file():
                     raise RVCConfigurationException("HuBERT model file was not found.")
 
@@ -87,13 +91,13 @@ class RVCInference:
                     index_root=str(model_path.parent.parent / "index"),
                 )
 
-                effective_threads = configure_torch(runtime.inference_threads, runtime.obs_reserved_threads)
-                if effective_threads != runtime.inference_threads:
+                effective_threads = configure_torch(configuration.inference_threads, configuration.obs_reserved_threads)
+                if effective_threads != configuration.inference_threads:
                     logger.info(
                         "Limiting %d requested RVC threads to %d after reserving %d threads for OBS.",
-                        runtime.inference_threads,
+                        configuration.inference_threads,
                         effective_threads,
-                        runtime.obs_reserved_threads,
+                        configuration.obs_reserved_threads,
                     )
 
                 from rvc.modules.vc import modules as vc_modules
@@ -120,12 +124,12 @@ class RVCInference:
                             removed_weight_norms,
                         )
 
-                    hubert_path = str(runtime.hubert_path.expanduser().resolve())
+                    hubert_path = str(configuration.hubert_path.expanduser().resolve())
                     hubert_key = (hubert_path, str(vc.config.device), bool(vc.config.is_half))
                     hubert_resource = self.hubert_models.get(hubert_key)
                     if hubert_resource is None:
                         from rvc.modules.vc.utils import load_hubert
-                        hubert_resource = Runtime.Hubert(model=load_hubert(vc.config, hubert_path))
+                        hubert_resource = HubertModelSchema(model=load_hubert(vc.config, hubert_path))
                         self.hubert_models[hubert_key] = hubert_resource
 
                     vc.hubert_model = hubert_resource.model
@@ -153,7 +157,7 @@ class RVCInference:
             vc: Any = self.models[key]
             stream = vc.streams.get(stream_id)
             if stream is None or stream.generation != stream_generation:
-                stream = Runtime.Stream(generation=stream_generation)
+                stream = AudioStreamSchema(generation=stream_generation)
                 stream.input_filter = StreamingHighpassFilter(*vc.input_filter_coefficients)
                 vc.streams[stream_id] = stream
 
@@ -176,7 +180,7 @@ class RVCInference:
             return output, target_sr
 
     def warmup(self) -> None:
-        options = Runtime.Options()
+        options = InferenceOptionsSchema()
         silence = np.zeros(16_800, dtype=np.int16)
         self.convert(silence, 48_000, 0, 0, None, None, options)
         with self.lock:
