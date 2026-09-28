@@ -43,7 +43,7 @@ def main() -> None:
 
     command.extend(("--collect-all", "fairseq", "--collect-data", "rvc", "--collect-data", "torchcrepe"))
     command.append(str(ROOT / "src" / "plugin_worker" / "__main__.py"))
-    subprocess.run(command, check=True)
+    subprocess.run(command, check=True, cwd=ROOT.parent)
 
 
 if __name__ == "__main__":

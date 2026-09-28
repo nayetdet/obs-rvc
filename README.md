@@ -75,17 +75,17 @@ Install all of the following and make sure their commands are available in `PATH
 
 OBS source code, prebuilt OBS dependencies, and Qt are downloaded by CMake during configuration on Windows; they do not need to be installed separately.
 
-### macOS
+### macOS (Apple Silicon)
 
 Install all of the following and make sure their commands are available in `PATH`:
 
-1. Xcode 16 or newer, plus the Xcode Command Line Tools.
+1. macOS 14 or newer, Xcode 16 or newer, plus the Xcode Command Line Tools.
 2. Git and Git LFS.
 3. CMake 3.28 or newer.
 4. Python 3.12 and `uv`.
 5. Rust and Cargo through `rustup`.
 
-The macOS preset builds a universal Apple Silicon and Intel plugin. OBS source code, prebuilt OBS dependencies, and Qt are downloaded by CMake during configuration; they do not need to be installed separately.
+The macOS build currently supports Apple Silicon (arm64). OBS source code, prebuilt OBS dependencies, and Qt are downloaded by CMake during configuration; they do not need to be installed separately.
 
 ## Build and install
 

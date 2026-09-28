@@ -6,11 +6,9 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
-#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <system_error>
 #include <thread>
 
 #if defined(__linux__)
@@ -33,19 +31,7 @@ inline std::string software_rendering_warning()
 				       normalized_device.find("swiftshader") != std::string::npos ||
 				       normalized_device.find("basic render driver") != std::string::npos ||
 				       normalized_device.find("microsoft warp") != std::string::npos;
-	bool has_render_device = true;
-#if defined(__linux__)
-	has_render_device = false;
-	std::error_code error;
-	for (std::filesystem::directory_iterator entry("/dev/dri", error);
-	     !error && entry != std::filesystem::directory_iterator(); entry.increment(error)) {
-		if (entry->path().filename().string().rfind("renderD", 0) == 0) {
-			has_render_device = true;
-			break;
-		}
-	}
-#endif
-	if (!software_renderer && has_render_device)
+	if (!software_renderer)
 		return {};
 
 	const std::string renderer = device.empty() ? "unknown renderer" : device;

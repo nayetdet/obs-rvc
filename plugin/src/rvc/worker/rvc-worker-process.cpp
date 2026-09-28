@@ -3,8 +3,11 @@
 #include <obs-module.h>
 #include <plugin-support.h>
 
+#include <cerrno>
+#include <chrono>
 #include <filesystem>
 #include <string>
+#include <thread>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -31,13 +34,28 @@ namespace fs = std::filesystem;
 #ifdef _WIN32
 bool launch(rvc_worker_process_t &worker, const fs::path &path)
 {
-	std::string command = "\"" + path.string() + "\"";
-	STARTUPINFOA startup{};
+	std::wstring command = L"\"" + path.wstring() + L"\"";
+	STARTUPINFOW startup{};
 	startup.cb = sizeof(startup);
-	return CreateProcessA(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
-			      path.parent_path().string().c_str(), &startup, &worker.process) != FALSE;
+	return CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
+			      path.parent_path().c_str(), &startup, &worker.process) != FALSE;
 }
 #else
+bool wait_for_exit(pid_t pid, std::chrono::milliseconds timeout)
+{
+	const auto deadline = std::chrono::steady_clock::now() + timeout;
+	for (;;) {
+		const pid_t result = waitpid(pid, nullptr, WNOHANG);
+		if (result == pid || (result < 0 && errno == ECHILD))
+			return true;
+		if (result < 0 && errno != EINTR)
+			return false;
+		if (std::chrono::steady_clock::now() >= deadline)
+			return false;
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+}
+
 bool launch(rvc_worker_process_t &worker, const fs::path &path)
 {
 	worker.pid = fork();
@@ -105,7 +123,10 @@ void rvc_worker_stop(rvc_worker_process_t *process)
 #else
 	if (process->pid > 0) {
 		kill(process->pid, SIGTERM);
-		waitpid(process->pid, nullptr, 0);
+		if (!wait_for_exit(process->pid, std::chrono::seconds(5))) {
+			kill(process->pid, SIGKILL);
+			wait_for_exit(process->pid, std::chrono::seconds(5));
+		}
 	}
 #endif
 	delete process;

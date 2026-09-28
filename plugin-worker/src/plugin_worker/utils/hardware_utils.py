@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,12 +11,16 @@ def is_gpu_accelerated_device(device: Any) -> bool:
 
 
 def available_cpu_count() -> int:
-    available = os.cpu_count() or 1
+    process_cpu_count = getattr(os, "process_cpu_count", None)
+    available = (process_cpu_count() if callable(process_cpu_count) else None) or os.cpu_count() or 1
     if hasattr(os, "sched_getaffinity"):
         try:
             available = min(available, len(os.sched_getaffinity(0)))
         except OSError:
             pass
+
+    if sys.platform != "linux":
+        return max(1, min(256, available))
 
     cgroup_v2 = Path("/sys/fs/cgroup/cpu.max")
     try:

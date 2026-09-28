@@ -14,7 +14,10 @@ def configure_torch(num_threads: int = 1, reserved_threads: int = 0) -> int:
     effective_threads = min(max(1, min(256, int(num_threads))), worker_limit)
     os.environ["OMP_NUM_THREADS"] = str(effective_threads)
     os.environ["MKL_NUM_THREADS"] = str(effective_threads)
-    torch.backends.mkldnn.enabled = True
+    mkldnn = getattr(torch.backends, "mkldnn", None)
+    if mkldnn is not None and mkldnn.is_available():
+        mkldnn.enabled = True
+
     torch.set_num_threads(effective_threads)
     try:
         torch.set_num_interop_threads(1)

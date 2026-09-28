@@ -157,8 +157,8 @@ add_custom_command(
   COMMAND
     "${CMAKE_COMMAND}" -E env --unset=CC --unset=CXX "PYINSTALLER_CONFIG_DIR=${PYINSTALLER_CONFIG_DIR}"
     ${WORKER_ENV_ARGS} "${UV_EXECUTABLE}" run --locked --project "${WORKER_DIR}" ${UV_PYTHON_ARGS}
-    --no-build-isolation-package fairseq --with "pyinstaller>=6.11,<7" python "${WORKER_DIR}/packaging/bundle.py"
-    --output "${WORKER_BUNDLE_DIR}"
+    --no-build-isolation-package fairseq --with "pyinstaller>=6.11,<7" --with "packaging>=23" python
+    "${WORKER_DIR}/packaging/bundle.py" --output "${WORKER_BUNDLE_DIR}"
   DEPENDS "${WORKER_DIR}/pyproject.toml" "${WORKER_DIR}/uv.lock" ${WORKER_SOURCES}
   COMMAND "${CMAKE_COMMAND}" -E touch "${WORKER_BUNDLE_STAMP}"
   WORKING_DIRECTORY "${WORKER_DIR}"
