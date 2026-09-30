@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -157,7 +158,8 @@ obs_properties_t *rvc_filter_properties(void *raw_data)
 	obs_properties_add_float_slider(properties, kProtect, "Protect", 0.0, 0.5, 0.01);
 	obs_properties_add_float_slider(properties, kIndexRate, "Index rate", 0.0, 1.0, 0.01);
 	obs_properties_add_int(properties, kInitialChunkDurationMs, "Initial conversion block (ms)", 250, 2000, 10);
-	obs_properties_add_int(properties, kMaximumChunkDurationMs, "Maximum conversion block (ms)", 250, 2000, 10);
+	obs_properties_add_int(properties, kMaximumChunkDurationMs, "Maximum conversion block (ms)", 250,
+			       std::numeric_limits<int>::max(), 10);
 
 	const int32_t total_threads = static_cast<int32_t>(rvc::utils::available_cpu_count());
 	obs_property_t *inference_threads = obs_properties_add_int(
@@ -257,7 +259,8 @@ void rvc_filter_update(void *raw_data, obs_data_t *settings)
 		static_cast<float>(obs_data_get_double(settings, kIndexRate)),
 		initial_chunk_duration_ms,
 		static_cast<int32_t>(std::clamp<int64_t>(obs_data_get_int(settings, kMaximumChunkDurationMs),
-							 initial_chunk_duration_ms, 2000)),
+							 initial_chunk_duration_ms,
+							 std::numeric_limits<int32_t>::max())),
 	};
 
 	obs_data_set_int(settings, kInitialChunkDurationMs, options.initial_chunk_duration_ms);
